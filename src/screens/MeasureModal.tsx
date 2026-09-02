@@ -1,12 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Modal, PanResponder, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View,
+  Modal, PanResponder, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { DeviceMotion } from 'expo-sensors';
-import { Card, SectionHeader } from '../components/ui';
+import { Ionicons } from '@expo/vector-icons';
+import { Button, Card, ContentColumn, Input, SectionHeader, SheetBar } from '../components/ui';
 import { useGarden } from '../state/GardenContext';
 import { Planting, latestHeight } from '../models/planting';
-import { Theme } from '../theme';
+import { color, radius, size, space, tabular, type } from '../theme';
 import * as haptics from '../services/haptics';
 
 type ReferenceKey = 'creditCard' | 'seedPacket' | 'trowel' | 'custom';
@@ -20,6 +21,7 @@ const REFERENCES: { key: ReferenceKey; label: string; cm: number }[] = [
 
 const MIN_SPAN = 20;
 const MAX_SPAN = 200;
+const STEP = 5;
 
 /// Photo-based measurement, reduced to the part that actually does the work.
 ///
@@ -45,11 +47,17 @@ export function MeasureModal({ planting, onClose }: { planting: Planting | null;
     (async () => {
       const available = await DeviceMotion.isAvailableAsync();
       if (!available || cancelled) return;
-      DeviceMotion.setUpdateInterval(80);
-      const listener = DeviceMotion.addListener((data) => {
-        if (!data.rotation) return;
-        setTilt({ roll: data.rotation.gamma, pitch: data.rotation.beta + Math.PI / 2, available: true });
-      });
+      let listener: { remove: () => void };
+      try {
+        DeviceMotion.setUpdateInterval(80);
+        listener = DeviceMotion.addListener((data) => {
+          if (!data.rotation) return;
+          setTilt({ roll: data.rotation.gamma, pitch: data.rotation.beta + Math.PI / 2, available: true });
+        });
+      } catch {
+        // The web build reports the sensor as available and then has no listener.
+        return;
+      }
       // Closing the sheet before the availability check returns used to leave the
       // motion sensor running, one listener per open.
       if (cancelled) listener.remove();
@@ -63,159 +71,196 @@ export function MeasureModal({ planting, onClose }: { planting: Planting | null;
 
   if (!planting) return <Modal visible={false} onRequestClose={onClose}><View /></Modal>;
 
+  const customValue = Number(customCm.replace(',', '.'));
+  const customValid = Number.isFinite(customValue) && customValue > 0 && customValue <= 300;
   const referenceCm = reference === 'custom'
-    ? Number(customCm) || 20
+    ? (customValid ? customValue : 0)
     : REFERENCES.find((r) => r.key === reference)!.cm;
 
-  const measured = referenceSpan > 8 ? referenceCm * (plantSpan / referenceSpan) : 0;
+  const measured = referenceSpan > 8 && referenceCm > 0 ? referenceCm * (plantSpan / referenceSpan) : 0;
   const isLevel = Math.abs(tilt.roll) < 0.06 && Math.abs(tilt.pitch) < 0.06;
   const previous = latestHeight(planting);
+  const canSave = measured > 0;
 
   const save = () => {
-    if (measured <= 0) return;
+    if (!canSave) return;
     garden.recordHeight(measured, planting);
     haptics.success();
     onClose();
   };
 
+  const levelState = !tilt.available ? 'none' : isLevel ? 'level' : 'tilted';
+  const levelCopy = {
+    none: { title: 'No motion sensor here', body: 'Hold the phone as square to the plant as you can by eye.' },
+    level: { title: 'Level - take the shot', body: 'The frame is square, so the ratio will be true.' },
+    tilted: { title: 'Straighten up a little', body: 'A tilted frame stretches one side and the ratio stops being true.' },
+  }[levelState];
+  const bubbleColour = { none: color.textTertiary, level: color.brand, tilted: color.sun }[levelState];
+
   return (
     <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: Theme.background }}>
-        <View style={styles.bar}>
-          <Pressable onPress={onClose}><Text style={styles.barAction}>Cancel</Text></Pressable>
-          <Text style={styles.barTitle}>Measure {planting.nickname}</Text>
-          <Pressable onPress={save} disabled={measured <= 0}>
-            <Text style={[styles.barAction, styles.barPrimary, measured <= 0 && { opacity: 0.35 }]}>
-              Save
-            </Text>
-          </Pressable>
-        </View>
+      <SafeAreaView style={{ flex: 1, backgroundColor: color.canvas }}>
+        <SheetBar
+          title={`Measure ${planting.nickname}`}
+          onCancel={onClose}
+          action="Save"
+          onAction={save}
+          actionDisabled={!canSave}
+        />
 
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-          <Card padding={14}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-              <View style={styles.levelRing}>
-                <View
-                  style={[
-                    styles.bubble,
-                    {
-                      backgroundColor: isLevel ? Theme.leaf : Theme.sun,
-                      transform: [
-                        { translateX: clamp(tilt.roll * 60, -16, 16) },
-                        { translateY: clamp(tilt.pitch * 60, -16, 16) },
-                      ],
-                    },
-                  ]}
-                />
-              </View>
-              <View style={{ flex: 1, gap: 2 }}>
-                <Text style={styles.strong}>
-                  {!tilt.available
-                    ? 'No motion sensor here'
-                    : isLevel ? 'Level - take the shot' : 'Straighten up a little'}
-                </Text>
-                <Text style={styles.tiny}>
-                  A tilted frame stretches one side and the ratio stops being true.
-                </Text>
-              </View>
-            </View>
-          </Card>
-
-          <Card>
-            <View style={{ gap: 10 }}>
-              <SectionHeader
-                title="Reference object"
-                subtitle="Stand something you know the size of in the soil."
-              />
-              <View style={styles.segment}>
-                {REFERENCES.map((item) => (
-                  <Pressable
-                    key={item.key}
-                    onPress={() => {
-                      haptics.selection();
-                      setReference(item.key);
-                    }}
-                    style={[styles.segmentItem, reference === item.key && styles.segmentActive]}
-                  >
-                    <Text
+          <ContentColumn style={{ gap: size.cardGap }}>
+            <Card padding={space.md}>
+              <View
+                style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}
+                accessibilityLabel={levelCopy.title}
+              >
+                <View style={[styles.levelRing, levelState === 'none' && styles.levelRingOff]}>
+                  {levelState === 'none' ? (
+                    <Ionicons name="remove" size={18} color={color.textTertiary} />
+                  ) : (
+                    <View
                       style={[
-                        styles.segmentLabel,
-                        reference === item.key && { color: Theme.leafDeep, fontWeight: '700' },
+                        styles.bubble,
+                        {
+                          backgroundColor: bubbleColour,
+                          transform: [
+                            { translateX: clamp(tilt.roll * 60, -16, 16) },
+                            { translateY: clamp(tilt.pitch * 60, -16, 16) },
+                          ],
+                        },
                       ]}
-                    >
-                      {item.label}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-              {reference === 'custom' ? (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <TextInput
-                    value={customCm}
-                    onChangeText={setCustomCm}
-                    keyboardType="decimal-pad"
-                    style={styles.input}
-                  />
-                  <Text style={styles.tiny}>cm</Text>
+                    />
+                  )}
                 </View>
-              ) : null}
-            </View>
-          </Card>
-
-          <Card>
-            <View style={{ gap: 12 }}>
-              <SectionHeader
-                title="Match the two bars"
-                subtitle="Drag each one to the height it appears in your photo."
-              />
-              <View style={{ flexDirection: 'row', gap: 28, height: 250, alignItems: 'flex-end' }}>
-                <DragBar
-                  span={referenceSpan}
-                  setSpan={setReferenceSpan}
-                  tint={Theme.sun}
-                  caption="Reference"
-                  detail={`${Math.round(referenceCm)} cm`}
-                />
-                <DragBar
-                  span={plantSpan}
-                  setSpan={setPlantSpan}
-                  tint={Theme.leaf}
-                  caption="Plant"
-                  detail={measured > 0 ? `${Math.round(measured)} cm` : '-'}
-                />
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={type.bodyStrong}>{levelCopy.title}</Text>
+                  <Text style={type.caption}>{levelCopy.body}</Text>
+                </View>
               </View>
-            </View>
-          </Card>
+            </Card>
 
-          <Card>
-            <View style={{ gap: 6 }}>
-              <Text style={styles.label}>Measured height</Text>
-              <Text style={styles.result}>{measured > 0 ? `${measured.toFixed(1)} cm` : '-'}</Text>
-              {previous !== null && measured > 0 ? (
-                <Text style={{ fontSize: 13, color: measured >= previous ? Theme.leaf : Theme.alert }}>
-                  {measured >= previous
-                    ? `Up ${(measured - previous).toFixed(1)} cm on last time`
-                    : `Down ${(previous - measured).toFixed(1)} cm on last time`}
-                </Text>
-              ) : null}
-            </View>
-          </Card>
+            <Card>
+              <View style={{ gap: space.md }}>
+                <SectionHeader
+                  title="Reference object"
+                  subtitle="Stand something you know the size of in the soil."
+                />
+                <View style={styles.segment} accessibilityRole="radiogroup" accessibilityLabel="Reference object">
+                  {REFERENCES.map((item) => {
+                    const on = reference === item.key;
+                    return (
+                      <Pressable
+                        key={item.key}
+                        onPress={() => {
+                          haptics.selection();
+                          setReference(item.key);
+                        }}
+                        accessibilityRole="radio"
+                        accessibilityLabel={item.key === 'custom' ? 'Other length' : `${item.label}, ${item.cm} centimetres`}
+                        accessibilityState={{ selected: on }}
+                        style={({ pressed }) => [
+                          styles.segmentItem,
+                          on && styles.segmentActive,
+                          pressed && !on && { backgroundColor: color.surfacePressed },
+                        ]}
+                      >
+                        <Text style={[styles.segmentLabel, on && styles.segmentLabelActive]}>{item.label}</Text>
+                        {item.key !== 'custom' ? (
+                          <Text style={[styles.segmentSub, tabular, on && { color: color.brandDeep }]}>{item.cm} cm</Text>
+                        ) : null}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                {reference === 'custom' ? (
+                  <View style={{ gap: space.xs }}>
+                    <Input
+                      label="Its length in centimetres"
+                      value={customCm}
+                      onChangeText={setCustomCm}
+                      keyboardType="decimal-pad"
+                      placeholder="20"
+                      maxLength={5}
+                    />
+                    {!customValid ? (
+                      <Text style={[type.caption, { color: color.dangerText }]}>Enter a length between 1 and 300 cm.</Text>
+                    ) : null}
+                  </View>
+                ) : null}
+              </View>
+            </Card>
+
+            <Card>
+              <View style={{ gap: space.md }}>
+                <SectionHeader
+                  title="Match the two bars"
+                  subtitle="Drag each handle to the height it appears next to the real thing."
+                />
+                <View style={styles.bars}>
+                  <DragBar
+                    span={referenceSpan}
+                    setSpan={setReferenceSpan}
+                    tint={color.sun}
+                    tintText={color.sunText}
+                    caption="Reference"
+                    detail={referenceCm > 0 ? `${formatCm(referenceCm)} cm` : '–'}
+                  />
+                  <DragBar
+                    span={plantSpan}
+                    setSpan={setPlantSpan}
+                    tint={color.brand}
+                    tintText={color.brandDeep}
+                    caption="Plant"
+                  />
+                  <View style={styles.result}>
+                    <Text style={type.label}>Measured height</Text>
+                    <Text style={[styles.resultValue, tabular]}>
+                      {measured > 0 ? `${formatCm(measured)} cm` : '–'}
+                    </Text>
+                    {previous !== null && measured > 0 ? (
+                      <Text style={[type.caption, tabular, { color: measured >= previous ? color.brandDeep : color.dangerText }]}>
+                        {measured >= previous
+                          ? `Up ${formatCm(measured - previous)} cm on last time`
+                          : `Down ${formatCm(previous - measured)} cm on last time`}
+                      </Text>
+                    ) : previous === null && measured > 0 ? (
+                      <Text style={type.caption}>First measurement.</Text>
+                    ) : null}
+                  </View>
+                </View>
+              </View>
+            </Card>
+          </ContentColumn>
         </ScrollView>
+
+        <View style={styles.footer}>
+          <ContentColumn>
+            <Button
+              label={canSave ? `Save ${formatCm(measured)} cm` : 'Set the reference first'}
+              icon="checkmark"
+              onPress={save}
+              disabled={!canSave}
+            />
+          </ContentColumn>
+        </View>
       </SafeAreaView>
     </Modal>
   );
 }
 
 const clamp = (value: number, low: number, high: number) => Math.min(Math.max(value, low), high);
+const formatCm = (value: number) => (value >= 100 ? Math.round(value).toString() : value.toFixed(1));
 
 /// A bar you drag from the bottom up. Its height in points is the only thing the
-/// measurement needs.
-function DragBar({ span, setSpan, tint, caption, detail }: {
+/// measurement needs. The handle is a 44pt target; screen readers can nudge it.
+function DragBar({ span, setSpan, tint, tintText, caption, detail }: {
   span: number;
   setSpan: (value: number) => void;
   tint: string;
+  tintText: string;
   caption: string;
-  detail: string;
+  detail?: string;
 }) {
   // The pan responder is created once, so it reads the live value through a ref
   // rather than closing over a stale `span`.
@@ -224,6 +269,7 @@ function DragBar({ span, setSpan, tint, caption, detail }: {
   const setSpanRef = useRef(setSpan);
   setSpanRef.current = setSpan;
   const startSpan = useRef(span);
+  const [dragging, setDragging] = useState(false);
 
   const responder = useRef(
     PanResponder.create({
@@ -231,78 +277,105 @@ function DragBar({ span, setSpan, tint, caption, detail }: {
       onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: () => {
         startSpan.current = spanRef.current;
+        setDragging(true);
       },
       onPanResponderMove: (_, gesture) => {
         setSpanRef.current(clamp(startSpan.current - gesture.dy, MIN_SPAN, MAX_SPAN));
       },
-      onPanResponderRelease: () => haptics.selection(),
+      onPanResponderRelease: () => {
+        setDragging(false);
+        haptics.selection();
+      },
+      onPanResponderTerminate: () => setDragging(false),
     })
   ).current;
 
   return (
-    <View style={{ alignItems: 'center', gap: 6 }}>
-      <View style={{ height: 200, justifyContent: 'flex-end' }} {...responder.panHandlers}>
-        <View style={{ width: 34, height: span, borderRadius: 8, backgroundColor: tint + '2E' }} />
-        <View
-          style={{
-            position: 'absolute',
-            bottom: span - 10,
-            left: 7,
-            width: 20,
-            height: 20,
-            borderRadius: 10,
-            backgroundColor: tint,
-          }}
-        />
+    <View
+      style={styles.barColumn}
+      accessibilityRole="adjustable"
+      accessibilityLabel={`${caption} bar`}
+      accessibilityValue={{ min: MIN_SPAN, max: MAX_SPAN, now: Math.round(span) }}
+      accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+      onAccessibilityAction={(event) => {
+        const delta = event.nativeEvent.actionName === 'increment' ? STEP : -STEP;
+        setSpan(clamp(span + delta, MIN_SPAN, MAX_SPAN));
+      }}
+    >
+      <View style={styles.barTrack} {...responder.panHandlers}>
+        <View style={[styles.bar, { height: span, backgroundColor: tint + '33', borderColor: tint + '66' }]} />
+        <View style={[styles.handleHit, { bottom: span - size.tap / 2 }]}>
+          <View style={[styles.handle, { backgroundColor: tint }, dragging && styles.handleActive]}>
+            <Ionicons name="reorder-two" size={16} color="#FFF" />
+          </View>
+        </View>
       </View>
-      <Text style={styles.caption}>{caption}</Text>
-      <Text style={styles.tiny}>{detail}</Text>
+      <Text style={[type.captionStrong, { color: tintText }]}>{caption}</Text>
+      {detail ? <Text style={[type.caption, tabular]}>{detail}</Text> : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  bar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 18,
-    paddingVertical: 14,
+  scroll: { padding: size.gutter, paddingBottom: space.xxl },
+  footer: {
+    paddingHorizontal: size.gutter,
+    paddingVertical: space.md,
+    borderTopWidth: 1,
+    borderTopColor: color.line,
+    backgroundColor: color.surface,
   },
-  barTitle: { fontSize: 15, fontWeight: '700', color: Theme.ink },
-  barAction: { fontSize: 15, color: Theme.leafDeep },
-  barPrimary: { fontWeight: '700' },
-  scroll: { padding: 18, paddingBottom: 40, gap: 14 },
   levelRing: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     borderWidth: 2,
-    borderColor: Theme.leafPale,
+    borderColor: color.brandPale,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  bubble: { width: 14, height: 14, borderRadius: 7 },
-  strong: { fontSize: 15, fontWeight: '600', color: Theme.ink },
-  tiny: { fontSize: 12, color: Theme.inkSoft, lineHeight: 17 },
-  label: { fontSize: 13, fontWeight: '600', color: Theme.inkSoft },
-  result: { fontSize: 32, fontWeight: '700', color: Theme.leafDeep },
-  caption: { fontSize: 12, fontWeight: '600', color: Theme.ink },
+  levelRingOff: { borderStyle: 'dashed', borderColor: color.line },
+  bubble: { width: 16, height: 16, borderRadius: 8 },
   segment: {
     flexDirection: 'row',
-    backgroundColor: Theme.surfaceAlt,
-    borderRadius: 10,
+    backgroundColor: color.surfaceSunken,
+    borderRadius: radius.sm,
     padding: 3,
+    gap: 2,
   },
-  segmentItem: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 8 },
-  segmentActive: { backgroundColor: Theme.surface },
-  segmentLabel: { fontSize: 13, color: Theme.inkSoft },
-  input: {
+  segmentItem: {
     flex: 1,
-    backgroundColor: Theme.surfaceAlt,
-    borderRadius: 10,
-    padding: 10,
-    fontSize: 15,
-    color: Theme.ink,
+    minHeight: size.tap,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.xs + 1,
+    gap: 1,
   },
+  segmentActive: { backgroundColor: color.surface },
+  segmentLabel: { fontSize: 14, fontWeight: '500', color: color.textSecondary },
+  segmentLabelActive: { color: color.brandDeep, fontWeight: '700' },
+  segmentSub: { fontSize: 11, lineHeight: 13, color: color.textTertiary },
+  bars: { flexDirection: 'row', alignItems: 'flex-end', gap: space.lg },
+  barColumn: { alignItems: 'center', gap: space.xs, width: 72 },
+  barTrack: { height: MAX_SPAN + size.tap / 2, width: 72, justifyContent: 'flex-end', alignItems: 'center' },
+  bar: { width: 40, borderRadius: radius.xs, borderWidth: 1 },
+  handleHit: {
+    position: 'absolute',
+    width: size.tap,
+    height: size.tap,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  handle: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FFF',
+  },
+  handleActive: { transform: [{ scale: 1.15 }] },
+  result: { flex: 1, gap: space.xs, paddingBottom: space.xxl, alignSelf: 'flex-end' },
+  resultValue: { fontSize: 30, lineHeight: 36, fontWeight: '700', color: color.brandDeep },
 });

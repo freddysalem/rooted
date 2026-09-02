@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Modal, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Svg, { Circle, Line, Polyline } from 'react-native-svg';
+import { Ionicons } from '@expo/vector-icons';
 import {
-  Alert, Modal, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View,
-} from 'react-native';
-import Svg, { Circle, Polyline } from 'react-native-svg';
-import { Card, Pill, PrimaryButton, SectionHeader } from '../components/ui';
+  Button, Card, ContentColumn, Input, Pill, ProgressBar, SectionHeader, SheetBar,
+} from '../components/ui';
 import { PlantSprite } from '../components/PlantSprite';
 import { useGarden } from '../state/GardenContext';
 import {
@@ -11,9 +12,12 @@ import {
   latestHeight, progressOf, seedOf, sortedHeights, stageLabel, stageOf,
 } from '../models/planting';
 import { lightLabel } from '../models/species';
-import { Theme } from '../theme';
+import { color, radius, size, space, tabular, type } from '../theme';
 import * as haptics from '../services/haptics';
+import { confirmDestructive } from '../services/confirm';
 import { MeasureModal } from './MeasureModal';
+
+const NOTES_SAVE_DELAY = 600;
 
 /// Everything about one plant. Takes the live record from the store so it stays current
 /// while you water and measure from inside the sheet.
@@ -23,11 +27,42 @@ export function PlantDetailModal({ planting, onClose }: {
 }) {
   const garden = useGarden();
   const [notes, setNotes] = useState('');
+  const [notesState, setNotesState] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [measuring, setMeasuring] = useState(false);
+  const [justWatered, setJustWatered] = useState(false);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dirty = useRef(false);
 
   useEffect(() => {
     setNotes(planting?.notes ?? '');
+    setNotesState('idle');
+    setJustWatered(false);
+    dirty.current = false;
   }, [planting?.id]);
+
+  // Notes save a moment after you stop typing, not on every keystroke, and say so.
+  const editNotes = (text: string) => {
+    setNotes(text);
+    dirty.current = true;
+    setNotesState('saving');
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      if (planting) garden.updateNotes(text, planting);
+      dirty.current = false;
+      setNotesState('saved');
+    }, NOTES_SAVE_DELAY);
+  };
+
+  const flushNotes = () => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    if (dirty.current && planting) garden.updateNotes(notes, planting);
+    dirty.current = false;
+  };
+
+  const close = () => {
+    flushNotes();
+    onClose();
+  };
 
   if (!planting) return <Modal visible={false} onRequestClose={onClose}><View /></Modal>;
 
@@ -36,6 +71,8 @@ export function PlantDetailModal({ planting, onClose }: {
   const heights = sortedHeights(planting);
   const gain = heightGain(planting);
   const latest = latestHeight(planting);
+  const thirsty = garden.needsWater(planting);
+  const ready = stageOf(planting) === 'ready';
 
   const lastWateredText = (() => {
     if (!planting.lastWatered) return 'Not watered yet';
@@ -59,151 +96,169 @@ export function PlantDetailModal({ planting, onClose }: {
     return null;
   })();
 
+  const water = () => {
+    garden.water(planting);
+    setJustWatered(true);
+    setTimeout(() => setJustWatered(false), 1800);
+  };
+
   const confirmRemoval = () => {
-    Alert.alert(
-      'Clear this bed?',
-      'Your badges stay earned either way.',
-      [
-        { text: 'Keep it', style: 'cancel' },
-        {
-          text: `Remove ${planting.nickname}`,
-          style: 'destructive',
-          onPress: () => {
-            garden.removePlanting(planting);
-            onClose();
-          },
-        },
-      ]
-    );
+    confirmDestructive({
+      title: ready ? 'Harvest and clear the bed?' : 'Clear this bed?',
+      message: 'Your badges stay earned either way.',
+      actionLabel: `Remove ${planting.nickname}`,
+      onConfirm: () => {
+        haptics.tap();
+        garden.removePlanting(planting);
+        close();
+      },
+    });
   };
 
   return (
-    <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: Theme.background }}>
-        <View style={styles.bar}>
-          <View style={{ width: 50 }} />
-          <Text style={styles.barTitle}>{planting.nickname}</Text>
-          <Pressable onPress={onClose}><Text style={styles.barPrimary}>Done</Text></Pressable>
-        </View>
+    <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={close}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: color.canvas }}>
+        <SheetBar title={planting.nickname} action="Done" onAction={close} />
 
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-          <Card>
-            <View style={{ alignItems: 'center', gap: 12 }}>
-              <View style={styles.hero}>
-                <PlantSprite
-                  family={species.family}
-                  progress={progress}
-                  seed={seedOf(planting)}
-                  height={150}
-                />
-                <View style={styles.heroSoil} />
-              </View>
-
-              <View style={{ alignItems: 'center', gap: 3 }}>
-                <Text style={styles.name}>{planting.nickname}</Text>
-                <Text style={styles.subtle}>{species.name}</Text>
-              </View>
-
-              <View style={{ flexDirection: 'row', gap: 6 }}>
-                <Pill text={stageLabel[stageOf(planting)]} icon="leaf" />
-                <Pill text={lightLabel[species.light]} icon="sunny" tint="sun" />
-              </View>
-
-              <View style={{ width: '100%', gap: 6 }}>
-                <View style={styles.track}>
-                  <View style={[styles.fill, { width: `${Math.max(progress * 100, 4)}%` }]} />
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+          <ContentColumn style={{ gap: size.cardGap }}>
+            <Card>
+              <View style={{ alignItems: 'center', gap: space.md }}>
+                <View style={styles.hero} accessibilityLabel={`${planting.nickname}, drawn at ${Math.round(progress * 100)} percent grown`}>
+                  <PlantSprite
+                    family={species.family}
+                    progress={progress}
+                    seed={seedOf(planting)}
+                    height={120}
+                  />
+                  <View style={styles.heroSoil} />
                 </View>
-                <View style={styles.spread}>
-                  <Text style={styles.tiny}>Day {daysSincePlanting(planting)}</Text>
-                  <Text style={styles.tiny}>
-                    {daysUntilHarvest(planting) === 0
-                      ? 'Ready now'
-                      : `${daysUntilHarvest(planting)} days to harvest`}
-                  </Text>
+
+                <View style={{ alignItems: 'center', gap: 2 }}>
+                  <Text style={type.title} accessibilityRole="header">{planting.nickname}</Text>
+                  <Text style={type.bodyMuted}>{species.name}</Text>
                 </View>
-              </View>
-            </View>
-          </Card>
 
-          <Card>
-            <View style={{ gap: 10 }}>
-              <SectionHeader title="Water" subtitle={garden.wateringAdvice(planting)} />
-              <PrimaryButton
-                label="Water now"
-                icon="water"
-                tone={garden.needsWater(planting) ? 'solid' : 'quiet'}
-                onPress={() => garden.water(planting)}
-              />
-              <View style={styles.spread}>
-                <Text style={styles.tiny}>{lastWateredText}</Text>
-                <Text style={styles.tiny}>Every {garden.wateringInterval(planting)} days</Text>
-              </View>
-            </View>
-          </Card>
+                <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
+                  <Pill text={stageLabel[stageOf(planting)]} icon="leaf" tint="brand" />
+                  <Pill text={lightLabel[species.light]} icon="sunny" tint="sun" />
+                  {thirsty ? <Pill text="Needs water" icon="water" tint="water" /> : null}
+                </View>
 
-          <Card>
-            <View style={{ gap: 12 }}>
-              <SectionHeader
-                title="Growth"
-                subtitle="Photograph it next to something you know the size of - a trowel, a seed packet - and the app works out the rest."
-              />
-              {heights.length === 0 ? (
-                <Text style={styles.tiny}>No measurements yet.</Text>
-              ) : (
-                <View style={{ gap: 8 }}>
-                  <HeightChart values={heights.map((h) => h.centimetres)} />
+                <View style={{ width: '100%', gap: space.sm }}>
+                  <ProgressBar fraction={Math.max(progress, 0.03)} height={8} />
                   <View style={styles.spread}>
-                    {latest !== null ? (
-                      <Text style={styles.strong}>Now {Math.round(latest)} cm</Text>
-                    ) : <View />}
-                    {gain !== null && gain > 0 ? (
-                      <Text style={styles.gain}>+{Math.round(gain)} cm since first measured</Text>
-                    ) : null}
+                    <Text style={[type.caption, tabular]}>Day {daysSincePlanting(planting)}</Text>
+                    <Text style={[type.caption, tabular]}>
+                      {daysUntilHarvest(planting) === 0
+                        ? 'Ready now'
+                        : `${daysUntilHarvest(planting)} days to harvest`}
+                    </Text>
                   </View>
                 </View>
-              )}
-              <PrimaryButton
-                label="Record a height"
-                icon="resize"
-                tone="quiet"
-                onPress={() => {
-                  haptics.selection();
-                  setMeasuring(true);
-                }}
-              />
-            </View>
-          </Card>
+              </View>
+            </Card>
 
-          <Card>
-            <View style={{ gap: 8 }}>
-              <SectionHeader title="Care" />
-              <Text style={styles.body}>{species.tip}</Text>
-              {pruningReminder ? <Text style={styles.reminder}>✂  {pruningReminder}</Text> : null}
-            </View>
-          </Card>
+            <Card>
+              <View style={{ gap: space.md }}>
+                <SectionHeader title="Water" subtitle={garden.wateringAdvice(planting)} />
+                <Button
+                  label={justWatered ? 'Watered' : 'Water now'}
+                  icon={justWatered ? 'checkmark' : 'water'}
+                  tone={thirsty && !justWatered ? 'solid' : 'quiet'}
+                  onPress={water}
+                  disabled={justWatered}
+                />
+                <View style={styles.spread}>
+                  <Text style={type.caption}>{lastWateredText}</Text>
+                  <Text style={[type.caption, tabular]}>Every {garden.wateringInterval(planting)} days</Text>
+                </View>
+              </View>
+            </Card>
 
-          <Card>
-            <View style={{ gap: 8 }}>
-              <SectionHeader title="Diary" subtitle="What you tried, and whether it worked" />
-              <TextInput
-                value={notes}
-                onChangeText={(text) => {
-                  setNotes(text);
-                  garden.updateNotes(text, planting);
-                }}
-                multiline
-                placeholder="Notes..."
-                placeholderTextColor={Theme.inkSoft}
-                style={styles.notes}
-              />
-            </View>
-          </Card>
+            <Card>
+              <View style={{ gap: space.md }}>
+                <SectionHeader
+                  title="Growth"
+                  subtitle="Stand something you know the size of next to it and match two bars. The app works out the rest."
+                />
+                {heights.length === 0 ? (
+                  <View style={styles.noMeasurements}>
+                    <Ionicons name="resize-outline" size={18} color={color.textTertiary} />
+                    <Text style={type.caption}>No measurements yet. The first one sets the scale.</Text>
+                  </View>
+                ) : (
+                  <View style={{ gap: space.sm }}>
+                    <HeightChart values={heights.map((h) => h.centimetres)} />
+                    <View style={styles.spread}>
+                      {latest !== null ? (
+                        <Text style={[type.captionStrong, tabular]}>Now {Math.round(latest)} cm</Text>
+                      ) : <View />}
+                      {gain !== null && gain > 0 ? (
+                        <Text style={[type.caption, tabular, { color: color.brandDeep }]}>
+                          +{Math.round(gain)} cm since first measured
+                        </Text>
+                      ) : null}
+                    </View>
+                  </View>
+                )}
+                <Button
+                  label={heights.length === 0 ? 'Measure it' : 'Record a height'}
+                  icon="resize"
+                  tone="quiet"
+                  onPress={() => {
+                    haptics.selection();
+                    setMeasuring(true);
+                  }}
+                />
+              </View>
+            </Card>
 
-          <Pressable onPress={confirmRemoval} style={{ paddingVertical: 12 }}>
-            <Text style={styles.remove}>
-              {stageOf(planting) === 'ready' ? 'Harvest and clear the bed' : 'Remove from plot'}
-            </Text>
-          </Pressable>
+            <Card>
+              <View style={{ gap: space.sm }}>
+                <SectionHeader title="Care" />
+                <Text style={type.body}>{species.tip}</Text>
+                {pruningReminder ? (
+                  <View style={styles.reminder}>
+                    <Ionicons name="cut-outline" size={16} color={color.brandDeep} />
+                    <Text style={[type.caption, { flex: 1, color: color.brandDeep }]}>{pruningReminder}</Text>
+                  </View>
+                ) : null}
+              </View>
+            </Card>
+
+            <Card>
+              <View style={{ gap: space.sm }}>
+                <SectionHeader
+                  title="Diary"
+                  subtitle="What you tried, and whether it worked."
+                  right={
+                    notesState !== 'idle' ? (
+                      <Text style={[type.caption, { color: notesState === 'saved' ? color.brandDeep : color.textTertiary }]}>
+                        {notesState === 'saved' ? 'Saved' : 'Saving…'}
+                      </Text>
+                    ) : null
+                  }
+                />
+                <Input
+                  value={notes}
+                  onChangeText={editNotes}
+                  onBlur={flushNotes}
+                  multiline
+                  placeholder="Notes..."
+                  style={styles.notes}
+                  accessibilityLabel="Diary notes"
+                />
+              </View>
+            </Card>
+
+            <Button
+              label={ready ? 'Harvest and clear the bed' : 'Remove from plot'}
+              icon={ready ? 'basket-outline' : 'trash-outline'}
+              tone="danger"
+              onPress={confirmRemoval}
+            />
+          </ContentColumn>
         </ScrollView>
 
         <MeasureModal
@@ -215,53 +270,53 @@ export function PlantDetailModal({ planting, onClose }: {
   );
 }
 
-/// A plain line of measurements over time.
+/// A plain line of measurements over time, with the latest point emphasised.
 function HeightChart({ values }: { values: number[] }) {
   const width = 260;
   const height = 90;
+  const inset = 6;
   const max = Math.max(...values, 1);
   const min = Math.min(...values, 0);
   const range = Math.max(max - min, 1);
 
   const points = values.map((value, index) => {
-    const x = values.length === 1 ? width / 2 : (width * index) / (values.length - 1);
-    const y = height - ((value - min) / range) * height;
+    const x = values.length === 1 ? width / 2 : inset + ((width - inset * 2) * index) / (values.length - 1);
+    const y = inset + (height - inset * 2) - ((value - min) / range) * (height - inset * 2);
     return { x, y };
   });
+  const last = points[points.length - 1];
 
   return (
-    <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`}>
+    <Svg
+      width="100%"
+      height={height}
+      viewBox={`0 0 ${width} ${height}`}
+      accessibilityLabel={`Height over ${values.length} measurements, from ${Math.round(values[0])} to ${Math.round(values[values.length - 1])} centimetres`}
+    >
+      <Line x1={0} y1={height - inset} x2={width} y2={height - inset} stroke={color.line} strokeWidth={1} />
       <Polyline
         points={points.map((p) => `${p.x},${p.y}`).join(' ')}
         fill="none"
-        stroke={Theme.leaf}
+        stroke={color.brand}
         strokeWidth={2.5}
         strokeLinecap="round"
         strokeLinejoin="round"
       />
       {points.map((p, index) => (
-        <Circle key={index} cx={p.x} cy={p.y} r={3} fill={Theme.leaf} />
+        <Circle key={index} cx={p.x} cy={p.y} r={3} fill={color.brand} />
       ))}
+      <Circle cx={last.x} cy={last.y} r={6} fill={color.surface} stroke={color.brand} strokeWidth={2.5} />
     </Svg>
   );
 }
 
 const styles = StyleSheet.create({
-  bar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 18,
-    paddingVertical: 14,
-  },
-  barTitle: { fontSize: 16, fontWeight: '700', color: Theme.ink },
-  barPrimary: { fontSize: 15, fontWeight: '700', color: Theme.leafDeep },
-  scroll: { padding: 18, paddingBottom: 40, gap: 14 },
+  scroll: { padding: size.gutter, paddingBottom: space.xxxl },
   hero: {
     width: '100%',
-    height: 190,
-    borderRadius: 16,
-    backgroundColor: Theme.sky + '80',
+    height: 150,
+    borderRadius: radius.lg,
+    backgroundColor: color.sky + '80',
     alignItems: 'center',
     justifyContent: 'flex-end',
     overflow: 'hidden',
@@ -271,27 +326,18 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: 26,
-    backgroundColor: Theme.soil,
+    height: 22,
+    backgroundColor: '#8A7561',
   },
-  name: { fontSize: 24, fontWeight: '700', color: Theme.ink },
-  subtle: { fontSize: 14, color: Theme.inkSoft },
-  tiny: { fontSize: 12, color: Theme.inkSoft },
-  strong: { fontSize: 13, fontWeight: '600', color: Theme.ink },
-  gain: { fontSize: 12, color: Theme.leaf },
-  body: { fontSize: 14, color: Theme.ink, lineHeight: 20 },
-  reminder: { fontSize: 13, color: Theme.inkSoft, lineHeight: 19 },
-  track: { height: 10, borderRadius: 5, backgroundColor: Theme.surfaceAlt, overflow: 'hidden' },
-  fill: { height: 10, borderRadius: 5, backgroundColor: Theme.leaf },
   spread: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  notes: {
-    minHeight: 80,
-    backgroundColor: Theme.surfaceAlt,
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 14,
-    color: Theme.ink,
-    textAlignVertical: 'top',
+  noMeasurements: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  reminder: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: space.sm,
+    padding: space.md,
+    borderRadius: radius.sm,
+    backgroundColor: color.brandTint,
   },
-  remove: { textAlign: 'center', fontSize: 14, fontWeight: '600', color: Theme.alert },
+  notes: { minHeight: 96, textAlignVertical: 'top', paddingTop: 12 },
 });
