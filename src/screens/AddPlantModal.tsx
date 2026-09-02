@@ -1,234 +1,316 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, KeyboardAvoidingView, Platform,
+  Animated, KeyboardAvoidingView, LayoutAnimation, Modal, Platform, Pressable, SafeAreaView,
+  ScrollView, StyleSheet, Text, UIManager, View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Card, Pill, SectionHeader } from '../components/ui';
+import { Button, Card, ContentColumn, EmptyState, Input, Pill, SectionHeader, SheetBar } from '../components/ui';
 import { PlantSprite } from '../components/PlantSprite';
 import { useGarden } from '../state/GardenContext';
 import {
-  CATEGORY_ORDER, SPECIES, Species, categoryLabel, difficultyLabel, familyLabel, lightLabel,
+  CATEGORY_ORDER, SPECIES, Species, categoryLabel, difficultyLabel, lightLabel,
 } from '../models/species';
-import { Theme } from '../theme';
+import { color, motion, radius, size, space, type } from '../theme';
 import * as haptics from '../services/haptics';
+import { useReduceMotion } from '../hooks/useReduceMotion';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
 
-/// Choosing what to grow. Sorted so that whatever suits the month you are actually in
-/// comes first - a seed catalogue in January order is no use to anyone in July.
-export function AddPlantModal({ plot, onClose }: { plot: number | null; onClose: () => void }) {
+/// Choosing what to grow. One list, filed by category, with whatever suits the month
+/// you are actually in floated to the top of each section and marked - a seed catalogue
+/// in January order is no use to anyone in July.
+///
+/// Tap a row and it opens in place: name it, read the tip, and press the button at the
+/// bottom. Nothing jumps.
+export function AddPlantModal({ plot, onClose, initialSpecies = null }: {
+  plot: number | null;
+  onClose: () => void;
+  /** Pre-chosen from Discover or Sun spot. Shown pinned at the top. */
+  initialSpecies?: Species | null;
+}) {
   const garden = useGarden();
   const [selected, setSelected] = useState<Species | null>(null);
   const [nickname, setNickname] = useState('');
   const [search, setSearch] = useState('');
+  const [planted, setPlanted] = useState<Species | null>(null);
+  const reduceMotion = useReduceMotion();
+  const open = plot !== null;
+
+  useEffect(() => {
+    if (open) setSelected(initialSpecies);
+  }, [open, initialSpecies?.id]);
 
   const month = new Date().getMonth() + 1;
+  const query = search.trim().toLowerCase();
 
-  const filtered = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    if (!query) return SPECIES;
-    return SPECIES.filter((s) => s.name.toLowerCase().includes(query));
-  }, [search]);
+  const filtered = useMemo(
+    () => (query ? SPECIES.filter((s) => s.name.toLowerCase().includes(query)) : SPECIES),
+    [query]
+  );
+  const inSeason = (s: Species) => s.sowMonths.includes(month);
 
-  const inSeason = filtered.filter((s) => s.sowMonths.includes(month));
+  const pinned = initialSpecies && selected?.id === initialSpecies.id ? initialSpecies : null;
 
-  const close = () => {
+  const sections = CATEGORY_ORDER.map((category) => {
+    const rows = filtered
+      .filter((s) => s.category === category && s.id !== pinned?.id)
+      .sort((a, b) => Number(inSeason(b)) - Number(inSeason(a)));
+    return { category, rows };
+  }).filter((section) => section.rows.length > 0);
+
+  const animateLayout = () => {
+    if (reduceMotion) return;
+    LayoutAnimation.configureNext(LayoutAnimation.create(
+      motion.standard, LayoutAnimation.Types.easeInEaseOut, LayoutAnimation.Properties.opacity
+    ));
+  };
+
+  const choose = (species: Species) => {
+    haptics.selection();
+    animateLayout();
+    setSelected((current) => (current?.id === species.id ? null : species));
+    setNickname('');
+  };
+
+  const reset = () => {
     setSelected(null);
     setNickname('');
     setSearch('');
+    setPlanted(null);
+  };
+
+  const close = () => {
+    reset();
     onClose();
   };
 
   const confirm = () => {
-    if (selected && plot !== null) {
-      garden.plant(selected, nickname, plot);
-      close();
-    }
+    if (!selected || plot === null) return;
+    garden.plant(selected, nickname, plot);
+    setPlanted(selected);
+    setTimeout(close, reduceMotion ? 600 : 1300);
   };
 
+  const buttonLabel = selected ? `Plant ${nickname.trim() || selected.name}` : 'Choose a plant';
+
   return (
-    <Modal visible={plot !== null} animationType="slide" presentationStyle="pageSheet" onRequestClose={close}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: Theme.background }}>
-        <View style={styles.bar}>
-          <Pressable onPress={close}><Text style={styles.barAction}>Cancel</Text></Pressable>
-          <Text style={styles.barTitle}>Plant something</Text>
-          <Pressable onPress={confirm} disabled={!selected}>
-            <Text style={[styles.barAction, styles.barPrimary, !selected && { opacity: 0.35 }]}>Plant</Text>
-          </Pressable>
-        </View>
+    <Modal visible={open} animationType="slide" presentationStyle="pageSheet" onRequestClose={close}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: color.canvas }}>
+        <SheetBar title="Plant something" onCancel={close} />
 
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
-          <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-            <TextInput
-              value={search}
-              onChangeText={setSearch}
-              placeholder="Search plants"
-              placeholderTextColor={Theme.inkSoft}
-              style={styles.search}
-            />
-
-            {selected ? (
-              <Card>
-                <View style={{ gap: 10 }}>
-                  <SectionHeader
-                    title="Name it"
-                    subtitle="Plants you have named are plants you remember to water."
-                  />
-                  <TextInput
-                    value={nickname}
-                    onChangeText={setNickname}
-                    placeholder={selected.name}
-                    placeholderTextColor={Theme.inkSoft}
-                    style={styles.input}
-                  />
-                  <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
-                    <Pill text={lightLabel[selected.light]} icon="sunny" tint="sun" />
-                    <Pill text={`${selected.daysToHarvest} days`} icon="calendar" />
-                    <Pill text={difficultyLabel(selected.difficulty)} icon="speedometer" tint="soil" />
-                  </View>
-                  <Text style={styles.tip}>{selected.tip}</Text>
-                </View>
-              </Card>
-            ) : null}
-
-            {inSeason.length > 0 ? (
-              <Card padding={14}>
-                <SectionHeader
-                  title="Good to sow now"
-                  subtitle={`${MONTH_NAMES[month - 1]} is the right time for these.`}
+        {planted ? (
+          <PlantedMoment species={planted} nickname={nickname.trim() || planted.name} />
+        ) : (
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <ScrollView
+              contentContainerStyle={styles.scroll}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+            >
+              <ContentColumn style={{ gap: size.cardGap }}>
+                <Input
+                  value={search}
+                  onChangeText={setSearch}
+                  placeholder="Search plants"
+                  clearable
+                  autoCorrect={false}
+                  returnKeyType="search"
                 />
-                <View style={{ gap: 8, marginTop: 12 }}>
-                  {inSeason.map((species) => (
-                    <SpeciesRow
-                      key={species.id}
-                      species={species}
-                      isSelected={selected?.id === species.id}
-                      onPress={() => {
-                        haptics.selection();
-                        setSelected(species);
-                        setNickname('');
-                      }}
-                    />
-                  ))}
-                </View>
-              </Card>
-            ) : null}
 
-            {CATEGORY_ORDER.map((category) => {
-              const inCategory = filtered.filter((item) => item.category === category);
-              if (inCategory.length === 0) return null;
-              return (
-                <Card key={category} padding={14}>
-                  <SectionHeader
-                    title={categoryLabel[category]}
-                    subtitle={`${inCategory.length} to choose from`}
-                  />
-                  <View style={{ gap: 8, marginTop: 12 }}>
-                    {inCategory.map((species) => (
-                      <SpeciesRow
-                        key={species.id}
-                        species={species}
-                        isSelected={selected?.id === species.id}
-                        onPress={() => {
-                          haptics.selection();
-                          setSelected(species);
-                          setNickname('');
-                        }}
+                {pinned ? (
+                  <Card padding={space.sm}>
+                    <View style={{ paddingHorizontal: space.sm, paddingTop: space.xs, paddingBottom: space.sm }}>
+                      <SectionHeader title="Your pick" subtitle="Change your mind below if you like." />
+                    </View>
+                    <SpeciesRow
+                      species={pinned}
+                      inSeason={inSeason(pinned)}
+                      isSelected
+                      nickname={nickname}
+                      onNickname={setNickname}
+                      onPress={() => choose(pinned)}
+                    />
+                  </Card>
+                ) : null}
+
+                {sections.length === 0 ? (
+                  <Card>
+                    <EmptyState
+                      icon="search"
+                      title={`No plants match "${search.trim()}"`}
+                      body="Try a shorter word, or clear the search to browse the whole catalogue."
+                      action={<Button label="Clear search" tone="quiet" onPress={() => setSearch('')} />}
+                    />
+                  </Card>
+                ) : null}
+
+                {sections.map(({ category, rows }) => (
+                  <Card key={category} padding={space.sm}>
+                    <View style={{ paddingHorizontal: space.sm, paddingTop: space.xs, paddingBottom: space.sm }}>
+                      <SectionHeader
+                        title={categoryLabel[category]}
+                        subtitle={
+                          rows.some(inSeason)
+                            ? `${rows.filter(inSeason).length} good to sow in ${MONTH_NAMES[month - 1]}`
+                            : `${rows.length} to choose from`
+                        }
                       />
-                    ))}
-                  </View>
-                </Card>
-              );
-            })}
-          </ScrollView>
-        </KeyboardAvoidingView>
+                    </View>
+                    <View style={{ gap: 2 }}>
+                      {rows.map((species) => (
+                        <SpeciesRow
+                          key={species.id}
+                          species={species}
+                          inSeason={inSeason(species)}
+                          isSelected={selected?.id === species.id}
+                          nickname={nickname}
+                          onNickname={setNickname}
+                          onPress={() => choose(species)}
+                        />
+                      ))}
+                    </View>
+                  </Card>
+                ))}
+              </ContentColumn>
+            </ScrollView>
+
+            <View style={styles.footer}>
+              <ContentColumn>
+                <Button label={buttonLabel} icon={selected ? 'leaf' : undefined} onPress={confirm} disabled={!selected} />
+              </ContentColumn>
+            </View>
+          </KeyboardAvoidingView>
+        )}
       </SafeAreaView>
     </Modal>
   );
 }
 
-function SpeciesRow({ species, isSelected, onPress }: {
+/// A catalogue row. Selected, it opens up to take a name and show the tip.
+function SpeciesRow({ species, inSeason, isSelected, nickname, onNickname, onPress }: {
   species: Species;
+  inSeason: boolean;
   isSelected: boolean;
+  nickname: string;
+  onNickname: (text: string) => void;
   onPress: () => void;
 }) {
   return (
-    <Pressable
-      onPress={onPress}
-      style={[styles.row, isSelected && { backgroundColor: Theme.leafPale + '59' }]}
-    >
-      <View style={styles.rowSprite}>
-        <PlantSprite family={species.family} progress={0.8} seed={species.id.length} height={42} />
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.rowTitle}>{species.name}</Text>
-        <Text style={styles.rowSubtitle}>
-          {familyLabel[species.family]} · {lightLabel[species.light]} · {species.daysToHarvest} days
-        </Text>
-      </View>
-      <Ionicons
-        name={isSelected ? 'checkmark-circle' : 'ellipse-outline'}
-        size={20}
-        color={isSelected ? Theme.leaf : Theme.leafPale}
-      />
-    </Pressable>
+    <View style={[styles.rowWrap, isSelected && styles.rowWrapSelected]}>
+      <Pressable
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={`${species.name}. ${lightLabel[species.light]}, ${species.daysToHarvest} days${inSeason ? ', good to sow now' : ''}`}
+        accessibilityState={{ selected: isSelected, expanded: isSelected }}
+        style={({ pressed }) => [styles.row, pressed && !isSelected && { backgroundColor: color.surfaceSunken }]}
+      >
+        <View style={styles.rowSprite}>
+          <PlantSprite family={species.family} progress={0.8} seed={species.id.length} height={44} />
+        </View>
+        <View style={{ flex: 1, gap: 2 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm, flexWrap: 'wrap' }}>
+            <Text style={type.bodyStrong}>{species.name}</Text>
+            {inSeason ? <Pill text="In season" tint="brand" /> : null}
+          </View>
+          <Text style={type.caption} numberOfLines={1}>
+            {lightLabel[species.light]} · {species.daysToHarvest} days · {difficultyLabel(species.difficulty)}
+          </Text>
+        </View>
+        <Ionicons
+          name={isSelected ? 'checkmark-circle' : 'add-circle-outline'}
+          size={24}
+          color={isSelected ? color.brand : color.textTertiary}
+        />
+      </Pressable>
+
+      {isSelected ? (
+        <View style={styles.expanded}>
+          <Input
+            label="Name it (optional)"
+            value={nickname}
+            onChangeText={onNickname}
+            placeholder={species.name}
+            maxLength={24}
+            autoCapitalize="words"
+            returnKeyType="done"
+          />
+          <Text style={type.caption}>Plants you have named are plants you remember to water.</Text>
+          <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+            <Pill text={lightLabel[species.light]} icon="sunny" tint="sun" />
+            <Pill text={`${species.daysToHarvest} days to harvest`} icon="calendar" tint="neutral" />
+            <Pill text={difficultyLabel(species.difficulty)} icon="speedometer" tint="soil" />
+          </View>
+          <Text style={type.body}>{species.tip}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/// The half-second after planting. Enough to register that it happened.
+function PlantedMoment({ species, nickname }: { species: Species; nickname: string }) {
+  const pop = useRef(new Animated.Value(0)).current;
+  const reduceMotion = useReduceMotion();
+  useEffect(() => {
+    if (reduceMotion) { pop.setValue(1); return; }
+    Animated.spring(pop, { toValue: 1, useNativeDriver: true, speed: 16, bounciness: 8 }).start();
+  }, []);
+  return (
+    <View style={styles.planted} accessibilityRole="alert" accessibilityLabel={`${nickname} planted`}>
+      <Animated.View style={{ transform: [{ scale: pop }], alignItems: 'center', gap: space.md }}>
+        <View style={styles.plantedSprite}>
+          <PlantSprite family={species.family} progress={0.15} seed={species.id.length} height={90} />
+          <View style={styles.plantedSoil} />
+        </View>
+        <Text style={type.title}>{nickname} is in the ground</Text>
+        <Text style={type.caption}>Water it in, then leave it be.</Text>
+      </Animated.View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  bar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 18,
-    paddingVertical: 14,
+  scroll: { padding: size.gutter, paddingBottom: space.xxl },
+  footer: {
+    paddingHorizontal: size.gutter,
+    paddingTop: space.md,
+    paddingBottom: space.md,
+    borderTopWidth: 1,
+    borderTopColor: color.line,
+    backgroundColor: color.surface,
   },
-  barTitle: { fontSize: 16, fontWeight: '700', color: Theme.ink },
-  barAction: { fontSize: 15, color: Theme.leafDeep },
-  barPrimary: { fontWeight: '700' },
-  scroll: { padding: 18, paddingBottom: 40, gap: 14 },
-  search: {
-    backgroundColor: Theme.surface,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Theme.leafPale,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 15,
-    color: Theme.ink,
-  },
-  input: {
-    backgroundColor: Theme.surfaceAlt,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: Theme.ink,
-  },
-  tip: { fontSize: 13, color: Theme.inkSoft, lineHeight: 19 },
+  rowWrap: { borderRadius: radius.sm, overflow: 'hidden' },
+  rowWrapSelected: { backgroundColor: color.brandTint },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    padding: 8,
-    borderRadius: 12,
+    gap: space.md,
+    paddingVertical: space.sm,
+    paddingHorizontal: space.sm,
+    minHeight: 60,
+    borderRadius: radius.sm,
   },
   rowSprite: {
-    width: 46,
-    height: 46,
-    borderRadius: 8,
-    backgroundColor: Theme.surfaceAlt,
+    width: 48,
+    height: 48,
+    borderRadius: radius.xs,
+    backgroundColor: color.surfaceSunken,
     alignItems: 'center',
     justifyContent: 'flex-end',
     overflow: 'hidden',
   },
-  rowTitle: { fontSize: 15, fontWeight: '600', color: Theme.ink },
-  rowSubtitle: { fontSize: 12, color: Theme.inkSoft, marginTop: 2 },
+  expanded: { paddingHorizontal: space.md, paddingBottom: space.lg, gap: space.sm },
+  planted: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: space.xxxl },
+  plantedSprite: {
+    width: 140, height: 120, borderRadius: radius.lg, backgroundColor: color.sky + '80',
+    alignItems: 'center', justifyContent: 'flex-end', overflow: 'hidden',
+  },
+  plantedSoil: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 18, backgroundColor: '#8A7561' },
 });
