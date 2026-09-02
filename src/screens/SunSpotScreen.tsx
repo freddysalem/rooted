@@ -157,7 +157,7 @@ export function SunSpotScreen({ active = true }: { active?: boolean }) {
   const locationNote = (() => {
     if (locationState === 'granted' && coords) return 'Using your location, accurate to the nearest few hundred metres.';
     if (locationState === 'granted') return 'Finding your location...';
-    if (locationState === 'denied') return `Location is off for Plant Partner, so ${FALLBACK.name} is standing in.`;
+    if (locationState === 'denied') return `Location is off for Rooted, so ${FALLBACK.name} is standing in.`;
     return `Using ${FALLBACK.name} as a stand-in. Allow location for your own sky.`;
   })();
 

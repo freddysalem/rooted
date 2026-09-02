@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Plant Partner",
+    "name": "Rooted",
     "slug": "plant-partner",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -10,12 +10,12 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.plantpartner.app",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Plant Partner uses your location to work out the sun's path across your garden and to suggest what grows well near you."
+        "NSLocationWhenInUseUsageDescription": "Rooted uses your location to work out the sun's path across your garden and to suggest what grows well near you."
       }
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#FBF5E4",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"

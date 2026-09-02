@@ -1,4 +1,4 @@
-# Plant Partner — Expo build
+# Rooted — Expo build
 
 The same app as the native SwiftUI version, rebuilt in React Native so it runs on a phone
 through **Expo Go** without Xcode.
