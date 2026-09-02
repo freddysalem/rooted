@@ -355,6 +355,3 @@ const styles = StyleSheet.create({
   },
   track: { backgroundColor: color.surfaceSunken, overflow: 'hidden' },
 });
-
-/// Old name for Button, kept only until every screen has moved over.
-export const PrimaryButton = Button;

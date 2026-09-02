@@ -1,11 +1,13 @@
-import React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Card, SectionHeader } from '../components/ui';
-import { PlantSprite } from '../components/PlantSprite';
+import React, { useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Button, Card, Chip, ContentColumn, SectionHeader } from '../components/ui';
+import { PlantSprite, seedFromString } from '../components/PlantSprite';
 import { useGarden } from '../state/GardenContext';
 import { Species, harvestableIn, lightLabel, sowableIn } from '../models/species';
 import { getSpecies, progressOf, stageOf } from '../models/planting';
-import { Theme } from '../theme';
+import { color, radius, size, space, type } from '../theme';
+import * as haptics from '../services/haptics';
+import { AddPlantModal } from './AddPlantModal';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -28,117 +30,162 @@ const MONTH_BLURBS: Record<number, string> = {
 };
 
 /// What the month is good for. The whole tab answers one question: if I went outside
-/// right now, what should I be doing?
+/// right now, what should I be doing? Anything it names, you can act on from here.
 export function DiscoverScreen() {
   const garden = useGarden();
+  const [planting, setPlanting] = useState<Species | null>(null);
+  const [plantingBed, setPlantingBed] = useState(false);
   const month = new Date().getMonth() + 1;
   const harvesting = harvestableIn(month);
   const sowing = sowableIn(month);
 
+  const choose = (species: Species) => {
+    haptics.selection();
+    setPlanting(species);
+  };
+
   /// Seasonal jobs, and the ones your own plot is asking for.
-  const jobs: string[] = [];
+  const jobs: { text: string; action?: React.ReactNode }[] = [];
   if (garden.thirsty.length > 0) {
-    jobs.push(
-      garden.thirsty.length === 1
+    jobs.push({
+      text: garden.thirsty.length === 1
         ? 'One plant is due a water.'
-        : `${garden.thirsty.length} plants are due a water.`
-    );
+        : `${garden.thirsty.length} plants are due a water.`,
+      action: (
+        <View style={styles.chips}>
+          {garden.thirsty.slice(0, 4).map((p) => (
+            <Chip key={p.id} text={`Water ${p.nickname}`} icon="water" tint="water" onPress={() => garden.water(p)} />
+          ))}
+        </View>
+      ),
+    });
   }
   if (garden.plantings.some((p) => stageOf(p) === 'ready')) {
-    jobs.push('Something is ready to harvest - pick it before it goes over.');
+    jobs.push({ text: 'Something is ready to harvest - pick it before it goes over.' });
   }
   if (garden.plantings.some((p) => getSpecies(p).family === 'fruiting' && progressOf(p) > 0.5)) {
-    jobs.push('Pinch out side shoots on the fruiting plants.');
+    jobs.push({ text: 'Pinch out side shoots on the fruiting plants.' });
   }
-  if (month >= 3 && month <= 5) jobs.push('Check for slugs after rain, in the evening - that is when they are out.');
-  else if (month >= 6 && month <= 8) jobs.push('Feed the fruiting plants once a week now they are flowering.');
-  else if (month >= 9 && month <= 10) jobs.push('Collect seed from anything that did well this year.');
-  else jobs.push('Turn the compost heap. It will be half the size by spring.');
+  if (month >= 3 && month <= 5) jobs.push({ text: 'Check for slugs after rain, in the evening - that is when they are out.' });
+  else if (month >= 6 && month <= 8) jobs.push({ text: 'Feed the fruiting plants once a week now they are flowering.' });
+  else if (month >= 9 && month <= 10) jobs.push({ text: 'Collect seed from anything that did well this year.' });
+  else jobs.push({ text: 'Turn the compost heap. It will be half the size by spring.' });
   if (garden.firstEmptyPlot !== null) {
-    jobs.push('You have a spare bed. Something quick like radish will fill it in a month.');
+    jobs.push({
+      text: 'You have a spare bed. Something quick like radish will fill it in a month.',
+      action: (
+        <View style={styles.chips}>
+          <Chip text="Plant something" icon="add" onPress={() => { haptics.selection(); setPlantingBed(true); }} />
+        </View>
+      ),
+    });
   }
 
   return (
-    <ScrollView style={{ backgroundColor: Theme.background }} contentContainerStyle={styles.scroll}>
-      <Card>
-        <View style={{ gap: 6 }}>
-          <Text style={styles.month}>{MONTH_NAMES[month - 1]}</Text>
-          <Text style={styles.subtle}>{MONTH_BLURBS[month]}</Text>
-        </View>
-      </Card>
+    <ScrollView style={{ backgroundColor: color.canvas }} contentContainerStyle={styles.scroll}>
+      <ContentColumn style={{ gap: size.cardGap }}>
+        <Card>
+          <View style={{ gap: space.xs }}>
+            <Text style={type.label}>This month</Text>
+            <Text style={type.title} accessibilityRole="header">{MONTH_NAMES[month - 1]}</Text>
+            <Text style={type.bodyMuted}>{MONTH_BLURBS[month]}</Text>
+          </View>
+        </Card>
 
-      {harvesting.length > 0 ? (
-        <Carousel
-          title="In season now"
-          subtitle="Ready to eat somewhere in Britain this month."
-          species={harvesting}
-        />
-      ) : null}
+        {harvesting.length > 0 ? (
+          <Carousel
+            title="In season now"
+            subtitle="Ready to eat somewhere in Britain this month."
+            species={harvesting}
+            onChoose={choose}
+          />
+        ) : null}
 
-      {sowing.length > 0 ? (
-        <Carousel
-          title={`Sow in ${MONTH_NAMES[month - 1]}`}
-          subtitle="Get these in the ground and they will have time to finish."
-          species={sowing}
-        />
-      ) : null}
+        {sowing.length > 0 ? (
+          <Carousel
+            title={`Sow in ${MONTH_NAMES[month - 1]}`}
+            subtitle="Get these in the ground and they will have time to finish. Tap one to plant it."
+            species={sowing}
+            onChoose={choose}
+          />
+        ) : null}
 
-      <Card>
-        <View style={{ gap: 10 }}>
-          <SectionHeader title="This week" subtitle="Small jobs that pay off later." />
-          {jobs.map((job, index) => (
-            <View key={index} style={styles.job}>
-              <View style={styles.dot} />
-              <Text style={styles.jobText}>{job}</Text>
-            </View>
-          ))}
-        </View>
-      </Card>
+        <Card>
+          <View style={{ gap: space.md }}>
+            <SectionHeader title="This week" subtitle="Small jobs that pay off later." />
+            {jobs.map((job, index) => (
+              <View key={index} style={styles.job}>
+                <View style={styles.dot} />
+                <View style={{ flex: 1, gap: space.sm }}>
+                  <Text style={type.body}>{job.text}</Text>
+                  {job.action}
+                </View>
+              </View>
+            ))}
+          </View>
+        </Card>
+      </ContentColumn>
+
+      <AddPlantModal
+        plot={planting || plantingBed ? garden.firstEmptyPlot : null}
+        initialSpecies={planting}
+        onClose={() => { setPlanting(null); setPlantingBed(false); }}
+      />
     </ScrollView>
   );
 }
 
-function Carousel({ title, subtitle, species }: {
+function Carousel({ title, subtitle, species, onChoose }: {
   title: string;
   subtitle: string;
   species: Species[];
+  onChoose: (species: Species) => void;
 }) {
   return (
-    <Card padding={14}>
+    <Card>
       <SectionHeader title={title} subtitle={subtitle} />
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12 }}>
-        <View style={{ flexDirection: 'row', gap: 10 }}>
-          {species.map((item) => (
-            <View key={item.id} style={{ width: 120 }}>
-              <View style={styles.tile}>
-                <PlantSprite family={item.family} progress={0.9} seed={item.id.length} height={78} />
-              </View>
-              <Text style={styles.tileName}>{item.name}</Text>
-              <Text style={styles.tileSub}>{lightLabel[item.light]}</Text>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.carousel}
+        contentContainerStyle={styles.carouselContent}
+      >
+        {species.map((item) => (
+          <Pressable
+            key={item.id}
+            onPress={() => onChoose(item)}
+            accessibilityRole="button"
+            accessibilityLabel={`Plant ${item.name}. ${lightLabel[item.light]}`}
+            style={({ pressed }) => [styles.tileWrap, pressed && { transform: [{ scale: 0.96 }] }]}
+          >
+            <View style={styles.tile}>
+              <PlantSprite family={item.family} progress={0.9} seed={seedFromString(item.id)} height={78} />
             </View>
-          ))}
-        </View>
+            <Text style={type.bodyStrong} numberOfLines={1}>{item.name}</Text>
+            <Text style={type.caption} numberOfLines={1}>{lightLabel[item.light]}</Text>
+          </Pressable>
+        ))}
       </ScrollView>
     </Card>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: { padding: 18, paddingBottom: 40, gap: 14 },
-  month: { fontSize: 26, fontWeight: '700', color: Theme.ink },
-  subtle: { fontSize: 14, color: Theme.inkSoft, lineHeight: 20 },
+  scroll: { padding: size.gutter, paddingBottom: space.xxxl },
+  carousel: { marginHorizontal: -space.lg, marginTop: space.md },
+  carouselContent: { paddingHorizontal: space.lg, gap: space.sm },
+  tileWrap: { width: 120, gap: 2 },
   tile: {
     width: 120,
     height: 92,
-    borderRadius: 12,
-    backgroundColor: Theme.surfaceAlt,
+    borderRadius: radius.sm,
+    backgroundColor: color.surfaceSunken,
     alignItems: 'center',
     justifyContent: 'flex-end',
     overflow: 'hidden',
+    marginBottom: space.xs,
   },
-  tileName: { fontSize: 14, fontWeight: '600', color: Theme.ink, marginTop: 8 },
-  tileSub: { fontSize: 11, color: Theme.inkSoft, marginTop: 2 },
-  job: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Theme.leafLight, marginTop: 7 },
-  jobText: { flex: 1, fontSize: 14, color: Theme.ink, lineHeight: 20 },
+  job: { flexDirection: 'row', alignItems: 'flex-start', gap: space.md },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: color.brand, marginTop: 8 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
 });

@@ -4,15 +4,17 @@ import Svg, { Circle, Line, Text as SvgText } from 'react-native-svg';
 import Slider from '@react-native-community/slider';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
-import { Card, Pill, PrimaryButton, SectionHeader } from '../components/ui';
-import { PlantSprite } from '../components/PlantSprite';
+import { Button, Card, Chip, ContentColumn, Pill, SectionHeader } from '../components/ui';
+import { PlantSprite, seedFromString } from '../components/PlantSprite';
 import { useGarden } from '../state/GardenContext';
-import { SPECIES, lightLabel, lightMinimumHours } from '../models/species';
+import { SPECIES, Species, lightLabel, lightMinimumHours } from '../models/species';
+import { badgeById } from '../models/badges';
 import {
   SunSample, angularDistance, compassLabel, lightNeedForHours, sunArc, sunHoursFromArc, sunPosition,
 } from '../services/sunPath';
-import { Theme } from '../theme';
+import { color, radius, size, space, tabular, type } from '../theme';
 import * as haptics from '../services/haptics';
+import { AddPlantModal } from './AddPlantModal';
 
 const FALLBACK = { latitude: 51.4545, longitude: -2.5879, name: 'Bristol' };
 
@@ -23,40 +25,64 @@ const MONTH_NAMES = [
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
 
+type LocationState = 'unknown' | 'asking' | 'granted' | 'denied';
+
 /// Stand in the spot, point the phone at it, and the app works out how much sun that
 /// patch of ground actually gets - then names the plants that will be happy there.
 ///
 /// No camera is needed for the maths: the compass gives the bearing, the date and your
 /// coordinates give the sun's track, and the only judgement call left is how enclosed
 /// the spot is, which you set yourself.
-export function SunSpotScreen({ active = true }: { active?: boolean } = {}) {
+export function SunSpotScreen({ active = true }: { active?: boolean }) {
   const garden = useGarden();
   const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [locationState, setLocationState] = useState<LocationState>('unknown');
   const [heading, setHeading] = useState(180);
   const [headingAvailable, setHeadingAvailable] = useState(false);
   const [lockedBearing, setLockedBearing] = useState<number | null>(null);
   const [obstruction, setObstruction] = useState(12);
   const [now, setNow] = useState(new Date());
+  const [saved, setSaved] = useState(false);
+  const [planting, setPlanting] = useState<Species | null>(null);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 30000);
     return () => clearInterval(timer);
   }, []);
 
+  // Only use location if it has already been allowed. Asking is a deliberate tap below,
+  // so nobody is hit with a permission prompt before they know what the screen is for.
   useEffect(() => {
+    let cancelled = false;
+    Location.getForegroundPermissionsAsync()
+      .then(({ status }) => {
+        if (cancelled) return;
+        if (status === 'granted') setLocationState('granted');
+        else if (status === 'denied') setLocationState('denied');
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  const askForLocation = async () => {
+    setLocationState('asking');
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      setLocationState(status === 'granted' ? 'granted' : 'denied');
+    } catch {
+      setLocationState('denied');
+    }
+  };
+
+  // Position once, heading continuously - but only while this tab is on screen.
+  useEffect(() => {
+    if (locationState !== 'granted' || !active) return;
     let headingSubscription: Location.LocationSubscription | null = null;
     let cancelled = false;
     (async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted' || cancelled) return;
       try {
-        const position = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
-        setCoords({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-        });
+        const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        if (!cancelled) setCoords({ latitude: position.coords.latitude, longitude: position.coords.longitude });
       } catch {
         // Falls back to the default coordinates below.
       }
@@ -66,8 +92,6 @@ export function SunSpotScreen({ active = true }: { active?: boolean } = {}) {
           setHeading(bearing);
           setHeadingAvailable(true);
         });
-        // The screen can be left while this is still resolving - tear it straight
-        // back down rather than leaving a live compass behind.
         if (cancelled) subscription.remove();
         else headingSubscription = subscription;
       } catch {
@@ -78,11 +102,12 @@ export function SunSpotScreen({ active = true }: { active?: boolean } = {}) {
       cancelled = true;
       headingSubscription?.remove();
     };
-  }, []);
+  }, [locationState, active]);
 
   const latitude = coords?.latitude ?? FALLBACK.latitude;
   const longitude = coords?.longitude ?? FALLBACK.longitude;
   const bearing = lockedBearing ?? heading;
+  const locked = lockedBearing !== null;
 
   // The sun's track depends only on the day and the coordinates, so it is computed
   // once and reused. Only the filtering below follows the compass, which fires many
@@ -103,7 +128,7 @@ export function SunSpotScreen({ active = true }: { active?: boolean } = {}) {
   const month = now.getMonth() + 1;
   const suited = SPECIES.filter((s) => lightMinimumHours[s.light] <= hours + 0.5);
   const seasonal = suited.filter((s) => s.sowMonths.includes(month));
-  const suggestions = (seasonal.length ? seasonal : suited).slice(0, 6);
+  const suggestions = (seasonal.length ? seasonal : suited).slice(0, 8);
 
   const explanation = (() => {
     const name = MONTH_NAMES[month - 1];
@@ -120,115 +145,185 @@ export function SunSpotScreen({ active = true }: { active?: boolean } = {}) {
     : obstruction < 28 ? 'Hemmed in by fences'
     : 'Overshadowed by buildings';
 
+  const sunSeeker = badgeById('sun_seeker');
+  const alreadySurveyed = sunSeeker ? garden.hasEarned(sunSeeker) : false;
+
+  const saveSurvey = () => {
+    garden.markSunSurveyed();
+    haptics.success();
+    setSaved(true);
+  };
+
+  const locationNote = (() => {
+    if (locationState === 'granted' && coords) return 'Using your location, accurate to the nearest few hundred metres.';
+    if (locationState === 'granted') return 'Finding your location...';
+    if (locationState === 'denied') return `Location is off for Plant Partner, so ${FALLBACK.name} is standing in.`;
+    return `Using ${FALLBACK.name} as a stand-in. Allow location for your own sky.`;
+  })();
+
   return (
-    <ScrollView style={{ backgroundColor: Theme.background }} contentContainerStyle={styles.scroll}>
-      <Card>
-        <View style={{ gap: 14, alignItems: 'center' }}>
-          <SunDial arc={arc} bearing={bearing} current={current} obstruction={obstruction} />
-          <View style={{ width: '100%' }}>
-            <PrimaryButton
-              label={lockedBearing === null ? 'Lock this direction' : 'Unlock compass'}
-              tone={lockedBearing === null ? 'quiet' : 'solid'}
-              onPress={() => {
-                haptics.tap();
-                setLockedBearing(lockedBearing === null ? heading : null);
-              }}
-            />
+    <ScrollView style={{ backgroundColor: color.canvas }} contentContainerStyle={styles.scroll}>
+      <ContentColumn style={{ gap: size.cardGap }}>
+        <View style={styles.intro}>
+          <Text style={type.title} accessibilityRole="header">Sun spot</Text>
+          <Text style={type.bodyMuted}>Stand where you'd plant, point the phone at it, and see how much sun it gets.</Text>
+        </View>
+
+        <Card>
+          <View style={{ gap: space.md, alignItems: 'center' }}>
+            <SunDial arc={arc} bearing={bearing} current={current} obstruction={obstruction} />
+
+            <View style={styles.readoutRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={type.label}>Facing</Text>
+                <Text style={[type.heading, tabular]}>
+                  {compassLabel(bearing)} · {Math.round(bearing)}°
+                </Text>
+              </View>
+              {headingAvailable ? (
+                <Button
+                  label={locked ? 'Unlock' : 'Lock'}
+                  icon={locked ? 'lock-closed' : 'lock-open-outline'}
+                  tone={locked ? 'solid' : 'quiet'}
+                  compact
+                  onPress={() => {
+                    haptics.tap();
+                    setLockedBearing(locked ? null : heading);
+                  }}
+                  accessibilityLabel={locked ? 'Unlock the compass' : 'Lock this direction'}
+                />
+              ) : null}
+            </View>
+
+            <View style={{ width: '100%', gap: space.xs }}>
+              <Slider
+                value={bearing}
+                onValueChange={setLockedBearing}
+                minimumValue={0}
+                maximumValue={359}
+                step={1}
+                minimumTrackTintColor={color.sun}
+                maximumTrackTintColor={color.sunTint}
+                thumbTintColor={color.sun}
+                accessibilityLabel="Direction"
+                accessibilityHint="Drag to set the compass bearing"
+              />
+              <Text style={[type.caption, { textAlign: 'center' }]}>
+                {headingAvailable
+                  ? locked ? 'Direction locked. Unlock to follow the compass again.' : 'Drag to set the direction by hand; it locks the compass.'
+                  : 'No compass here. Drag to set the direction you are facing.'}
+              </Text>
+            </View>
           </View>
-          {!headingAvailable ? (
-            <Text style={styles.note}>
-              No compass reading yet - set the direction with the slider below.
-            </Text>
+        </Card>
+
+        <Card>
+          <View style={{ gap: space.sm }}>
+            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: space.sm, flexWrap: 'wrap' }}>
+              <Text style={[styles.hours, tabular]}>{hours.toFixed(1)} hours</Text>
+              <Text style={type.bodyMuted}>of direct sun today</Text>
+            </View>
+            <View style={{ flexDirection: 'row' }}>
+              <Pill text={`Suits ${lightLabel[need].toLowerCase()} plants`} icon="sunny" tint="sun" />
+            </View>
+            <Text style={type.bodyMuted}>{explanation}</Text>
+          </View>
+        </Card>
+
+        <Card>
+          <View style={{ gap: space.sm }}>
+            <SectionHeader
+              title="How enclosed is it?"
+              subtitle="How high the walls, fences and trees around the spot reach."
+            />
+            <Slider
+              value={obstruction}
+              onValueChange={setObstruction}
+              minimumValue={0}
+              maximumValue={45}
+              step={1}
+              minimumTrackTintColor={color.brand}
+              maximumTrackTintColor={color.brandPale}
+              thumbTintColor={color.brand}
+              accessibilityLabel="How enclosed the spot is"
+              accessibilityValue={{ min: 0, max: 45, now: Math.round(obstruction), text: obstructionLabel }}
+            />
+            <View style={styles.spread}>
+              <Text style={type.captionStrong}>{obstructionLabel}</Text>
+              <Text style={[type.caption, tabular]}>{Math.round(obstruction)}° skyline</Text>
+            </View>
+          </View>
+        </Card>
+
+        <Card>
+          <SectionHeader title="Plant this here" subtitle={`Happy with ${hours.toFixed(1)} hours of sun. Tap one to plant it.`} />
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.carousel}
+            contentContainerStyle={styles.carouselContent}
+          >
+            {suggestions.map((species) => (
+              <Pressable
+                key={species.id}
+                onPress={() => {
+                  haptics.selection();
+                  setPlanting(species);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={`Plant ${species.name}`}
+                style={({ pressed }) => [styles.tileWrap, pressed && { transform: [{ scale: 0.96 }] }]}
+              >
+                <View style={styles.tile}>
+                  <PlantSprite family={species.family} progress={0.85} seed={seedFromString(species.id)} height={70} />
+                </View>
+                <Text style={[type.captionStrong, { textAlign: 'center' }]} numberOfLines={1}>{species.name}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+          <View style={{ marginTop: space.md, gap: space.sm }}>
+            <Button
+              label={saved || alreadySurveyed ? 'Survey saved' : 'Save this survey'}
+              icon={saved || alreadySurveyed ? 'checkmark' : 'bookmark-outline'}
+              tone={saved || alreadySurveyed ? 'quiet' : 'solid'}
+              onPress={saveSurvey}
+              disabled={saved || alreadySurveyed}
+            />
+            {saved ? (
+              <Text style={[type.caption, { textAlign: 'center', color: color.brandDeep }]}>
+                Sun Seeker badge earned. Have a look under Badges.
+              </Text>
+            ) : null}
+          </View>
+        </Card>
+
+        <View style={styles.locationNote}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+            <Ionicons
+              name={coords ? 'location' : 'location-outline'}
+              size={14}
+              color={color.textSecondary}
+            />
+            <Text style={[type.caption, { flex: 1 }]}>{locationNote}</Text>
+          </View>
+          {locationState === 'unknown' || locationState === 'asking' ? (
+            <View style={{ flexDirection: 'row' }}>
+              <Chip
+                text={locationState === 'asking' ? 'Asking...' : 'Use my location'}
+                icon="navigate"
+                tint="brand"
+                onPress={askForLocation}
+              />
+            </View>
           ) : null}
         </View>
-      </Card>
+      </ContentColumn>
 
-      <Card>
-        <View style={{ gap: 8 }}>
-          <Text style={styles.label}>
-            Facing {compassLabel(bearing)} · {Math.round(bearing)}°
-          </Text>
-          <Text style={styles.hours}>{hours.toFixed(1)} hours of direct sun</Text>
-          <View style={{ flexDirection: 'row' }}>
-            <Pill text={`Suits ${lightLabel[need].toLowerCase()} plants`} icon="sunny" tint="sun" />
-          </View>
-          <Text style={styles.subtle}>{explanation}</Text>
-        </View>
-      </Card>
-
-      <Card>
-        <View style={{ gap: 10 }}>
-          <SectionHeader
-            title="How enclosed is it?"
-            subtitle="How high the walls, fences and trees around the spot reach."
-          />
-          <Slider
-            value={obstruction}
-            onValueChange={setObstruction}
-            minimumValue={0}
-            maximumValue={45}
-            step={1}
-            minimumTrackTintColor={Theme.leaf}
-            maximumTrackTintColor={Theme.leafPale}
-            thumbTintColor={Theme.leaf}
-          />
-          <View style={styles.spread}>
-            <Text style={styles.strong}>{obstructionLabel}</Text>
-            <Text style={styles.tiny}>{Math.round(obstruction)}° skyline</Text>
-          </View>
-
-          <View style={styles.divider} />
-          <Text style={styles.strong}>Direction</Text>
-          <Slider
-            value={bearing}
-            onValueChange={setLockedBearing}
-            minimumValue={0}
-            maximumValue={359}
-            step={1}
-            minimumTrackTintColor={Theme.sun}
-            maximumTrackTintColor={Theme.sunPale}
-            thumbTintColor={Theme.sun}
-          />
-        </View>
-      </Card>
-
-      <Card padding={14}>
-        <SectionHeader title="Plant this here" subtitle={`Happy with ${hours.toFixed(1)} hours of sun.`} />
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12 }}>
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            {suggestions.map((species) => (
-              <View key={species.id} style={{ width: 96, alignItems: 'center' }}>
-                <View style={styles.tile}>
-                  <PlantSprite family={species.family} progress={0.85} seed={species.id.length} height={70} />
-                </View>
-                <Text style={styles.tileName}>{species.name}</Text>
-              </View>
-            ))}
-          </View>
-        </ScrollView>
-        <View style={{ marginTop: 12 }}>
-          <PrimaryButton
-            label="Save this survey"
-            onPress={() => {
-              garden.markSunSurveyed();
-              haptics.success();
-            }}
-          />
-        </View>
-      </Card>
-
-      <View style={styles.locationNote}>
-        <Ionicons
-          name={coords ? 'location' : 'location-outline'}
-          size={12}
-          color={Theme.inkSoft}
-        />
-        <Text style={styles.tiny}>
-          {coords
-            ? 'Using your location, accurate to the nearest few hundred metres.'
-            : `Using ${FALLBACK.name} as a stand-in until location is allowed.`}
-        </Text>
-      </View>
+      <AddPlantModal
+        plot={planting ? garden.firstEmptyPlot : null}
+        initialSpecies={planting}
+        onClose={() => setPlanting(null)}
+      />
     </ScrollView>
   );
 }
@@ -240,9 +335,9 @@ function SunDial({ arc, bearing, current, obstruction }: {
   current: { azimuth: number; elevation: number };
   obstruction: number;
 }) {
-  const size = 250;
-  const centre = size / 2;
-  const radius = centre - 26;
+  const sizePx = 240;
+  const centre = sizePx / 2;
+  const radiusPx = centre - 26;
 
   /// Compass bearings run clockwise from north, which is up.
   const point = (r: number, deg: number) => {
@@ -250,13 +345,17 @@ function SunDial({ arc, bearing, current, obstruction }: {
     return { x: centre + r * Math.sin(rad), y: centre - r * Math.cos(rad) };
   };
 
-  const needle = point(radius, bearing);
+  const needle = point(radiusPx, bearing);
   const compassPoints = ['N', 'E', 'S', 'W'];
 
   return (
-    <Svg width={size} height={size}>
-      <Circle cx={centre} cy={centre} r={radius} stroke={Theme.leafPale} strokeWidth={1.5} fill="none" />
-      <Circle cx={centre} cy={centre} r={radius * 0.45} fill={Theme.surfaceAlt} />
+    <Svg
+      width={sizePx}
+      height={sizePx}
+      accessibilityLabel={`Compass showing the sun's path today, facing ${compassLabel(bearing)}`}
+    >
+      <Circle cx={centre} cy={centre} r={radiusPx} stroke={color.line} strokeWidth={1.5} fill="none" />
+      <Circle cx={centre} cy={centre} r={radiusPx * 0.45} fill={color.surfaceSunken} />
 
       {/* The sun's track. Each dot is a moment; the ones that clear the skyline and fall
           within the facing arc are the ones that count. */}
@@ -265,7 +364,7 @@ function SunDial({ arc, bearing, current, obstruction }: {
         const lit =
           sample.position.elevation > obstruction &&
           angularDistance(sample.position.azimuth, bearing) <= 90;
-        const r = radius * (1 - (Math.max(sample.position.elevation, 0) / 90) * 0.55);
+        const r = radiusPx * (1 - (Math.max(sample.position.elevation, 0) / 90) * 0.55);
         const p = point(r, sample.position.azimuth);
         return (
           <Circle
@@ -273,23 +372,23 @@ function SunDial({ arc, bearing, current, obstruction }: {
             cx={p.x}
             cy={p.y}
             r={lit ? 3.5 : 2}
-            fill={lit ? Theme.sun : Theme.sunPale}
+            fill={lit ? color.sun : color.sunTint}
           />
         );
       })}
 
-      <Line x1={centre} y1={centre} x2={needle.x} y2={needle.y} stroke={Theme.leaf} strokeWidth={3} strokeLinecap="round" />
-      <Circle cx={centre} cy={centre} r={5} fill={Theme.leaf} />
+      <Line x1={centre} y1={centre} x2={needle.x} y2={needle.y} stroke={color.brand} strokeWidth={3} strokeLinecap="round" />
+      <Circle cx={centre} cy={centre} r={5} fill={color.brand} />
 
       {current.elevation > 0
         ? (() => {
-            const p = point(radius * (1 - (Math.max(current.elevation, 0) / 90) * 0.55), current.azimuth);
-            return <Circle cx={p.x} cy={p.y} r={9} fill={Theme.sun} stroke="#fff" strokeWidth={2} />;
+            const p = point(radiusPx * (1 - (Math.max(current.elevation, 0) / 90) * 0.55), current.azimuth);
+            return <Circle cx={p.x} cy={p.y} r={9} fill={color.sun} stroke="#fff" strokeWidth={2} />;
           })()
         : null}
 
       {compassPoints.map((label, index) => {
-        const p = point(radius + 14, index * 90);
+        const p = point(radiusPx + 14, index * 90);
         return (
           <SvgText
             key={label}
@@ -297,7 +396,7 @@ function SunDial({ arc, bearing, current, obstruction }: {
             y={p.y + 4}
             fontSize={12}
             fontWeight="bold"
-            fill={Theme.inkSoft}
+            fill={color.textSecondary}
             textAnchor="middle"
           >
             {label}
@@ -309,24 +408,22 @@ function SunDial({ arc, bearing, current, obstruction }: {
 }
 
 const styles = StyleSheet.create({
-  scroll: { padding: 18, paddingBottom: 40, gap: 14 },
-  label: { fontSize: 13, fontWeight: '600', color: Theme.inkSoft },
-  hours: { fontSize: 28, fontWeight: '700', color: Theme.leafDeep },
-  subtle: { fontSize: 13, color: Theme.inkSoft, lineHeight: 19 },
-  strong: { fontSize: 13, fontWeight: '600', color: Theme.ink },
-  tiny: { fontSize: 12, color: Theme.inkSoft },
-  note: { fontSize: 12, color: Theme.inkSoft, textAlign: 'center' },
+  scroll: { padding: size.gutter, paddingBottom: space.xxxl },
+  intro: { gap: space.xs, paddingHorizontal: space.xs, paddingBottom: space.xs },
+  readoutRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, width: '100%' },
+  hours: { fontSize: 28, lineHeight: 34, fontWeight: '700', color: color.brandDeep },
   spread: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  divider: { height: 1, backgroundColor: Theme.leafPale, marginVertical: 4 },
+  carousel: { marginHorizontal: -space.lg, marginTop: space.md },
+  carouselContent: { paddingHorizontal: space.lg, gap: space.sm },
+  tileWrap: { width: 96, gap: space.xs },
   tile: {
     width: 96,
     height: 80,
-    borderRadius: 12,
-    backgroundColor: Theme.surfaceAlt,
+    borderRadius: radius.sm,
+    backgroundColor: color.surfaceSunken,
     alignItems: 'center',
     justifyContent: 'flex-end',
     overflow: 'hidden',
   },
-  tileName: { fontSize: 13, fontWeight: '600', color: Theme.ink, marginTop: 6 },
-  locationNote: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 4 },
+  locationNote: { gap: space.sm, paddingHorizontal: space.xs },
 });

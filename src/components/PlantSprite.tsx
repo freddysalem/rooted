@@ -3,6 +3,15 @@ import { Animated, Easing, View } from 'react-native';
 import Svg, { Circle, Defs, Ellipse, G, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 import { PlantFamily } from '../models/species';
 import { Theme } from '../theme';
+import { useReduceMotion } from '../hooks/useReduceMotion';
+
+/// A stable small integer from any string, so catalogue sprites that share a family do
+/// not all sway in lockstep. Plantings use their own seed; this is for species.
+export function seedFromString(text: string): number {
+  let hash = 0;
+  for (let i = 0; i < text.length; i++) hash = (hash * 31 + text.charCodeAt(i)) % 9973;
+  return hash;
+}
 
 /// The on-screen twin of a real plant. It is drawn, not photographed - no camera needed -
 /// and it grows as the real one does: `progress` drives every dimension here.
@@ -16,11 +25,17 @@ export function PlantSprite({ family, progress, seed, height = 90 }: {
   height?: number;
 }) {
   const sway = useRef(new Animated.Value(0)).current;
+  const reduceMotion = useReduceMotion();
 
   const swayAmount = 1.5 + (seed % 4) * 0.45;
   const swayDuration = (2.3 + (seed % 6) * 0.33) * 1000;
 
   useEffect(() => {
+    if (reduceMotion) {
+      // Ambient motion off: the plant stands still, upright.
+      sway.setValue(0.5);
+      return;
+    }
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(sway, {
@@ -39,7 +54,7 @@ export function PlantSprite({ family, progress, seed, height = 90 }: {
     );
     loop.start();
     return () => loop.stop();
-  }, [sway, swayDuration]);
+  }, [sway, swayDuration, reduceMotion]);
 
   const rotate = sway.interpolate({
     inputRange: [0, 1],
