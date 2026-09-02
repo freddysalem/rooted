@@ -9,6 +9,8 @@ export interface WeatherSnapshot {
   rainfallLast24h: number;
   willRainToday: boolean;
   placeName: string;
+  /** Set when this came from the stand-in model rather than a live feed. */
+  simulated?: boolean;
 }
 
 export const conditionLabel: Record<WeatherCondition, string> = {
@@ -43,13 +45,9 @@ function pseudoRandom(seed: number): number {
   return x - Math.floor(x);
 }
 
-/// Stand-in weather source.
-///
-/// Swapping in a real feed is a drop-in replacement: anything that returns a
-/// `WeatherSnapshot` works, and every screen above it stays identical. On the native
-/// build this is where Apple's WeatherKit would sit; from Expo Go an HTTP forecast API
-/// is the equivalent, and neither changes a line of UI.
-export async function currentWeather(placeName = 'Your garden'): Promise<WeatherSnapshot> {
+/// Stand-in weather: a rough British year. Used when there are no coordinates (no
+/// location permission, or the web build) and when the live feed fails.
+export async function simulatedWeather(placeName = 'Your garden'): Promise<WeatherSnapshot> {
   const now = new Date();
   const month = now.getMonth() + 1;
   const startOfYear = new Date(now.getFullYear(), 0, 0);
@@ -83,5 +81,63 @@ export async function currentWeather(placeName = 'Your garden'): Promise<Weather
     rainfallLast24h,
     willRainToday: rainfallLast24h > 0.5,
     placeName,
+    simulated: true,
   };
+}
+
+/// WMO weather codes, as Open-Meteo reports them.
+function conditionFromCode(code: number, lowC: number): WeatherCondition {
+  if (lowC <= 0.5) return 'frost';
+  if (code >= 95) return 'storm';
+  if ((code >= 71 && code <= 77) || code === 85 || code === 86) return 'frost';
+  if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) return 'rain';
+  if (code === 3 || code === 45 || code === 48) return 'cloudy';
+  if (code === 1 || code === 2) return 'partlyCloudy';
+  return 'clear';
+}
+
+/// Live weather from Open-Meteo (open-meteo.com): no key, no account, free for
+/// non-commercial use. With coordinates it fetches the real forecast; without them, or
+/// if the request fails or takes more than six seconds, it falls back to the simulation,
+/// so every screen above always gets a snapshot.
+export async function currentWeather(opts: {
+  latitude?: number;
+  longitude?: number;
+  placeName?: string;
+} = {}): Promise<WeatherSnapshot> {
+  const { latitude, longitude } = opts;
+  const placeName = opts.placeName ?? 'Your garden';
+  if (latitude === undefined || longitude === undefined) return simulatedWeather(placeName);
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 6000);
+  try {
+    const url =
+      'https://api.open-meteo.com/v1/forecast' +
+      `?latitude=${latitude.toFixed(3)}&longitude=${longitude.toFixed(3)}` +
+      '&current=temperature_2m,precipitation,weather_code,is_day' +
+      '&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,weather_code' +
+      '&past_days=1&forecast_days=2&timezone=auto';
+    const response = await fetch(url, { signal: controller.signal });
+    if (!response.ok) throw new Error(`open-meteo ${response.status}`);
+    const data = await response.json();
+    // With past_days=1, index 0 is yesterday and index 1 is today.
+    const highC = Number(data.daily.temperature_2m_max[1]);
+    const lowC = Number(data.daily.temperature_2m_min[1]);
+    const rainfallLast24h = Number(data.daily.precipitation_sum[0] ?? 0);
+    const rainToday = Number(data.daily.precipitation_sum[1] ?? 0);
+    return {
+      temperatureC: Number(data.current.temperature_2m),
+      highC,
+      lowC,
+      condition: conditionFromCode(Number(data.current.weather_code), lowC),
+      rainfallLast24h,
+      willRainToday: rainToday > 0.5,
+      placeName,
+    };
+  } catch {
+    return simulatedWeather(placeName);
+  } finally {
+    clearTimeout(timer);
+  }
 }

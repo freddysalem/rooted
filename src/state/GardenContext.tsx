@@ -1,5 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Location from 'expo-location';
 import {
   Planting, FULL_PLOT_TARGET, daysBetween, getSpecies, progressOf, stageOf,
 } from '../models/planting';
@@ -9,6 +11,7 @@ import { WeatherSnapshot, currentWeather } from '../services/weather';
 import {
   HomeColourId, Level, StreakState, advanceStreak, emptyStreak, levelFor, levelProgress,
 } from '../models/progress';
+import { REGIONS, RegionId } from '../models/regions';
 import * as haptics from '../services/haptics';
 
 const STORAGE_KEY = 'plantpartner.garden.v1';
@@ -21,12 +24,16 @@ interface PersistedState {
   /** Every plant ever put in, so pulling one up does not cost you progress. */
   plantsEverGrown?: number;
   homeColour?: HomeColourId;
+  region?: RegionId;
 }
 
 interface GardenValue {
   ready: boolean;
   plantings: Planting[];
   weather: WeatherSnapshot | null;
+  /** True when the snapshot came from the live feed rather than the simulation. */
+  weatherIsLive: boolean;
+  refreshWeather: () => void;
   justEarned: Badge | null;
   dismissBadge: () => void;
 
@@ -57,6 +64,9 @@ interface GardenValue {
   dismissLevel: () => void;
   homeColour: HomeColourId;
   setHomeColour: (colour: HomeColourId) => void;
+  /** Which crop library and, when there is no GPS, which sky the app shows. */
+  region: RegionId;
+  setRegion: (region: RegionId) => void;
 }
 
 const GardenContext = createContext<GardenValue | null>(null);
@@ -102,6 +112,9 @@ export function GardenProvider({ children }: { children: React.ReactNode }) {
   const [streak, setStreak] = useState<StreakState>(emptyStreak);
   const [plantsEverGrown, setPlantsEverGrown] = useState(0);
   const [homeColour, setHomeColour] = useState<HomeColourId>('red');
+  const [region, setRegion] = useState<RegionId>('uk');
+  const [weatherIsLive, setWeatherIsLive] = useState(false);
+  const coords = useRef<{ latitude: number; longitude: number } | null>(null);
   const [justLevelled, setJustLevelled] = useState<Level | null>(null);
   const knownLevel = useRef(1);
 
@@ -124,6 +137,7 @@ export function GardenProvider({ children }: { children: React.ReactNode }) {
           // Gardens saved before levels existed still deserve credit for what is planted.
           setPlantsEverGrown(parsed.plantsEverGrown ?? (parsed.plantings ?? []).length);
           setHomeColour(parsed.homeColour ?? 'red');
+          setRegion(parsed.region ?? 'uk');
           knownLevel.current = levelFor(
             (parsed.streak ?? emptyStreak).days,
             parsed.plantsEverGrown ?? (parsed.plantings ?? []).length
@@ -134,8 +148,41 @@ export function GardenProvider({ children }: { children: React.ReactNode }) {
       }
       setReady(true);
     })();
-    currentWeather().then(setWeather).catch(() => {});
   }, []);
+
+  // Real weather needs a position. Only a permission that has already been granted is
+  // used here - asking is the Sun spot screen's job, once it has explained itself.
+  // Without a position the chosen region's demo location stands in, so flipping the
+  // region on stage changes the sky as well as the crops.
+  const refreshWeather = useCallback(() => {
+    (async () => {
+      if (!coords.current) {
+        try {
+          const { status } = await Location.getForegroundPermissionsAsync();
+          if (status === 'granted') {
+            const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+            coords.current = { latitude: position.coords.latitude, longitude: position.coords.longitude };
+          }
+        } catch {
+          // No position: fall through to the region's stand-in.
+        }
+      }
+      const place = coords.current ?? REGIONS[region].demoLocation;
+      const placeName = coords.current ? 'Your garden' : REGIONS[region].demoLocation.name;
+      const snapshot = await currentWeather({ ...place, placeName });
+      setWeather(snapshot);
+      setWeatherIsLive(snapshot.placeName === placeName && !snapshot.simulated);
+    })().catch(() => {});
+  }, [region]);
+
+  useEffect(() => {
+    if (!ready) return;
+    refreshWeather();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') refreshWeather();
+    });
+    return () => sub.remove();
+  }, [ready, refreshWeather]);
 
   // Re-derive badges whenever the plot changes, then persist the lot.
   useEffect(() => {
@@ -158,9 +205,10 @@ export function GardenProvider({ children }: { children: React.ReactNode }) {
       streak,
       plantsEverGrown,
       homeColour,
+      region,
     };
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(payload)).catch(() => {});
-  }, [plantings, hasSurveyedSun, ready, streak, plantsEverGrown, homeColour]);
+  }, [plantings, hasSurveyedSun, ready, streak, plantsEverGrown, homeColour, region]);
 
   const plantingInPlot = useCallback(
     (plot: number) => plantings.find((p) => p.plot === plot),
@@ -309,7 +357,7 @@ export function GardenProvider({ children }: { children: React.ReactNode }) {
   );
 
   const value: GardenValue = {
-    ready, plantings, weather, justEarned,
+    ready, plantings, weather, weatherIsLive, refreshWeather, justEarned,
     dismissBadge: () => setJustEarned(null),
     plantingInPlot, firstEmptyPlot, thirsty,
     needsWater, wateringInterval, wateringAdvice, totalWaterings,
@@ -318,6 +366,7 @@ export function GardenProvider({ children }: { children: React.ReactNode }) {
     streak, plantsEverGrown, level, progress,
     justLevelled, dismissLevel: () => setJustLevelled(null),
     homeColour, setHomeColour,
+    region, setRegion,
   };
 
   return <GardenContext.Provider value={value}>{children}</GardenContext.Provider>;

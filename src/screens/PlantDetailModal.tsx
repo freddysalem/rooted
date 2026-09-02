@@ -6,6 +6,7 @@ import {
   Button, Card, ContentColumn, Input, Pill, ProgressBar, SectionHeader, SheetBar,
 } from '../components/ui';
 import { PlantSprite } from '../components/PlantSprite';
+import { TraitChips } from '../components/TraitChips';
 import { useGarden } from '../state/GardenContext';
 import {
   Planting, daysBetween, daysSincePlanting, daysUntilHarvest, getSpecies, heightGain,
@@ -218,6 +219,7 @@ export function PlantDetailModal({ planting, onClose }: {
               <View style={{ gap: space.sm }}>
                 <SectionHeader title="Care" />
                 <Text style={type.body}>{species.tip}</Text>
+                <TraitChips traits={species.traits} />
                 {pruningReminder ? (
                   <View style={styles.reminder}>
                     <Ionicons name="cut-outline" size={16} color={color.brandDeep} />

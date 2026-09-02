@@ -10,6 +10,33 @@ export type PlantCategory =
 
 export type LightNeed = 'fullSun' | 'partialShade' | 'shade';
 
+/// What a plant is good for, beyond being edible. Kept factual: "good source of", never
+/// a health claim.
+export type PlantTrait =
+  | 'highProtein' | 'highIron' | 'highVitaminA' | 'highVitaminC' | 'calorieDense'
+  | 'versatile' | 'cutAndComeAgain' | 'quickReturn' | 'droughtTolerant' | 'shadeTolerant'
+  | 'containerFriendly' | 'pollinator' | 'edibleFlower' | 'garnish' | 'ornamentalOnPlate'
+  | 'aromatic' | 'storesWell' | 'preservable';
+
+export const traitLabel: Record<PlantTrait, string> = {
+  highProtein: 'Protein', highIron: 'Iron', highVitaminA: 'Vitamin A', highVitaminC: 'Vitamin C',
+  calorieDense: 'Filling', versatile: 'Versatile', cutAndComeAgain: 'Cut and come again',
+  quickReturn: 'Quick', droughtTolerant: 'Drought-tolerant', shadeTolerant: 'Shade-tolerant',
+  containerFriendly: 'Grows in a pot', pollinator: 'Bees love it', edibleFlower: 'Edible flower',
+  garnish: 'Garnish', ornamentalOnPlate: 'Pretty on the plate', aromatic: 'Aromatic',
+  storesWell: 'Stores well', preservable: 'Pickles or freezes',
+};
+
+/** Ionicons names. */
+export const traitIcon: Record<PlantTrait, string> = {
+  highProtein: 'barbell-outline', highIron: 'magnet-outline', highVitaminA: 'eye-outline',
+  highVitaminC: 'sunny-outline', calorieDense: 'restaurant-outline', versatile: 'shuffle-outline',
+  cutAndComeAgain: 'repeat-outline', quickReturn: 'flash-outline', droughtTolerant: 'water-outline',
+  shadeTolerant: 'cloud-outline', containerFriendly: 'cube-outline', pollinator: 'bug-outline',
+  edibleFlower: 'flower-outline', garnish: 'leaf-outline', ornamentalOnPlate: 'color-palette-outline',
+  aromatic: 'rose-outline', storesWell: 'archive-outline', preservable: 'snow-outline',
+};
+
 export const familyLabel: Record<PlantFamily, string> = {
   leafy: 'Leafy green',
   root: 'Root veg',
@@ -77,6 +104,7 @@ export interface Species {
   /** 1 easy ... 3 fussy. */
   difficulty: number;
   tip: string;
+  traits?: PlantTrait[];
 }
 
 export function difficultyLabel(difficulty: number): string {
@@ -624,7 +652,134 @@ export const SPECIES: Species[] = [
     waterEveryDays: 3, daysToHarvest: 60, matureHeightCm: 30, difficulty: 1,
     sowMonths: [3,4,5,6,7,8], harvestMonths: [6,7,8,9,10,11],
     tip: 'Pull them at golf-ball size. The big ones are for livestock, whatever the packet says.' },
+  // --- African indigenous vegetables, on a Nairobi calendar (long rains Mar-May, short rains Oct-Dec) ---
+  { id: 'spiderplant', name: 'Spider plant (saga)', family: 'leafy', category: 'green', light: 'fullSun',
+    waterEveryDays: 2, daysToHarvest: 35, matureHeightCm: 60, difficulty: 1,
+    sowMonths: [3,4,10,11], harvestMonths: [4,5,6,11,12,1],
+    tip: 'Pick the young leaves every few days and it keeps coming. Slightly bitter, so cook it with milk or groundnuts.' },
+  { id: 'africannightshade', name: 'African nightshade (managu)', family: 'leafy', category: 'green', light: 'partialShade',
+    waterEveryDays: 2, daysToHarvest: 40, matureHeightCm: 70, difficulty: 1,
+    sowMonths: [3,4,10,11], harvestMonths: [4,5,6,7,11,12,1],
+    tip: 'Only the leaves are eaten. Pinch the tips to keep it bushy and cropping for months.' },
+  { id: 'cowpea', name: 'Cowpea (kunde)', family: 'legume', category: 'legume', light: 'fullSun',
+    waterEveryDays: 3, daysToHarvest: 45, matureHeightCm: 60, difficulty: 1,
+    sowMonths: [3,4,10,11], harvestMonths: [5,6,12,1],
+    tip: 'Grow it for the leaves first; the beans are a second harvest. It shrugs off dry spells.' },
+  { id: 'jutemallow', name: 'Jute mallow (mrenda)', family: 'leafy', category: 'green', light: 'fullSun',
+    waterEveryDays: 2, daysToHarvest: 40, matureHeightCm: 90, difficulty: 1,
+    sowMonths: [3,4,10,11], harvestMonths: [5,6,7,12,1],
+    tip: 'Cooked, the leaves go silky rather than slimy if you keep the pot moving. Sow thickly; it likes company.' },
+  { id: 'africaneggplant', name: 'African eggplant', family: 'fruiting', category: 'nightshade', light: 'fullSun',
+    waterEveryDays: 3, daysToHarvest: 90, matureHeightCm: 90, difficulty: 2,
+    sowMonths: [3,4,10], harvestMonths: [6,7,8,1,2],
+    tip: 'Pick the fruit while it is still pale and firm. Left to ripen it turns bitter.' },
+  { id: 'pigeonpea', name: 'Pigeon pea', family: 'legume', category: 'legume', light: 'fullSun',
+    waterEveryDays: 5, daysToHarvest: 150, matureHeightCm: 200, difficulty: 1,
+    sowMonths: [3,4,10,11], harvestMonths: [8,9,10,2,3],
+    tip: 'A shrub that fixes its own nitrogen and stands through drought. Plant it on the edge and leave it for years.' },
+  { id: 'fingermillet', name: 'Finger millet', family: 'grain', category: 'grain', light: 'fullSun',
+    waterEveryDays: 4, daysToHarvest: 120, matureHeightCm: 100, difficulty: 2,
+    sowMonths: [3,4,10], harvestMonths: [7,8,1,2],
+    tip: 'Sow into moist soil at the start of the rains. Harvest when the heads turn brown, then dry them well.' },
+  // --- British heritage crops worth bringing back ---
+  { id: 'skirret', name: 'Skirret', family: 'root', category: 'root', light: 'partialShade',
+    waterEveryDays: 3, daysToHarvest: 200, matureHeightCm: 100, difficulty: 2,
+    sowMonths: [3,4], harvestMonths: [10,11,12,1,2],
+    tip: 'A cluster of thin, sweet roots. Lift after the first frost and roast them whole.' },
+  { id: 'goodkinghenry', name: 'Good King Henry', family: 'leafy', category: 'green', light: 'partialShade',
+    waterEveryDays: 4, daysToHarvest: 120, matureHeightCm: 60, difficulty: 1,
+    sowMonths: [3,4,5], harvestMonths: [4,5,6,7,8,9],
+    tip: 'A perennial. Cut the young shoots like asparagus in spring, then take the leaves like spinach all summer.' },
+  { id: 'seakale', name: 'Sea kale', family: 'cole', category: 'cole', light: 'fullSun',
+    waterEveryDays: 5, daysToHarvest: 365, matureHeightCm: 60, difficulty: 2,
+    sowMonths: [3,4], harvestMonths: [3,4,5],
+    tip: 'Cover the crowns with a bucket in late winter and cut the pale shoots in spring. Do not pick in the first year.' },
+  { id: 'medlar', name: 'Medlar', family: 'tree', category: 'fruit', light: 'fullSun',
+    waterEveryDays: 7, daysToHarvest: 365, matureHeightCm: 300, difficulty: 2,
+    sowMonths: [11,12,1,2], harvestMonths: [10,11],
+    tip: 'Pick after the first frost and let the fruit soften indoors for a fortnight before eating. That is the whole trick.' },
+  { id: 'blackcurrant', name: 'Blackcurrant', family: 'cane', category: 'fruit', light: 'partialShade',
+    waterEveryDays: 4, daysToHarvest: 365, matureHeightCm: 150, difficulty: 1,
+    sowMonths: [11,12,1,2,3], harvestMonths: [7,8],
+    tip: 'Fruits on last year\'s wood. Cut a third of the oldest stems to the ground each winter.' },
+  { id: 'watercress', name: 'Watercress', family: 'leafy', category: 'green', light: 'partialShade',
+    waterEveryDays: 1, daysToHarvest: 40, matureHeightCm: 20, difficulty: 2,
+    sowMonths: [3,4,5,6,7,8], harvestMonths: [4,5,6,7,8,9,10],
+    tip: 'Stand the pot in a tray of water and change it often. It wants wet feet, not a pond.' },
 ];
+
+/// What each plant is good for. Conservative and factual; a missing entry means no
+/// claim, not no virtue.
+const TRAITS: Record<string, PlantTrait[]> = {
+  pea: ['highProtein', 'quickReturn', 'containerFriendly'],
+  broadbean: ['highProtein', 'preservable'],
+  runnerbean: ['highProtein', 'preservable', 'pollinator'],
+  lentil: ['highProtein', 'storesWell', 'droughtTolerant'],
+  peanut: ['highProtein', 'calorieDense'],
+  cowpea: ['highProtein', 'highIron', 'droughtTolerant', 'cutAndComeAgain'],
+  pigeonpea: ['highProtein', 'droughtTolerant', 'storesWell'],
+  quinoa: ['highProtein', 'storesWell'],
+  amaranth: ['highIron', 'highVitaminA', 'highProtein', 'droughtTolerant', 'cutAndComeAgain'],
+  spiderplant: ['highIron', 'highVitaminA', 'droughtTolerant', 'cutAndComeAgain', 'quickReturn'],
+  africannightshade: ['highIron', 'highVitaminA', 'cutAndComeAgain', 'shadeTolerant'],
+  jutemallow: ['highIron', 'highVitaminA', 'cutAndComeAgain', 'quickReturn'],
+  fingermillet: ['calorieDense', 'droughtTolerant', 'storesWell', 'highIron'],
+  africaneggplant: ['versatile', 'droughtTolerant'],
+  kale: ['highIron', 'highVitaminA', 'highVitaminC', 'cutAndComeAgain', 'shadeTolerant'],
+  collards: ['highVitaminA', 'highVitaminC', 'cutAndComeAgain', 'versatile'],
+  spinach: ['highIron', 'highVitaminA', 'quickReturn', 'cutAndComeAgain'],
+  chard: ['highIron', 'highVitaminA', 'cutAndComeAgain', 'shadeTolerant'],
+  lettuce: ['quickReturn', 'cutAndComeAgain', 'containerFriendly'],
+  arugula: ['quickReturn', 'cutAndComeAgain', 'containerFriendly', 'garnish'],
+  watercress: ['highVitaminC', 'highIron', 'quickReturn', 'garnish'],
+  goodkinghenry: ['highIron', 'shadeTolerant', 'cutAndComeAgain'],
+  seakale: ['highVitaminC', 'droughtTolerant'],
+  bokchoy: ['quickReturn', 'highVitaminA', 'highVitaminC'],
+  broccoli: ['highVitaminC', 'preservable'],
+  cabbage: ['highVitaminC', 'storesWell', 'preservable'],
+  radish: ['quickReturn', 'containerFriendly', 'garnish'],
+  carrot: ['highVitaminA', 'storesWell', 'containerFriendly'],
+  beetroot: ['highIron', 'storesWell', 'preservable', 'ornamentalOnPlate'],
+  potato: ['calorieDense', 'storesWell', 'versatile'],
+  sweetpotato: ['calorieDense', 'highVitaminA', 'storesWell', 'droughtTolerant'],
+  parsnip: ['calorieDense', 'storesWell'],
+  skirret: ['calorieDense', 'storesWell'],
+  onion: ['versatile', 'storesWell'],
+  garlic: ['versatile', 'storesWell', 'aromatic'],
+  leek: ['versatile', 'shadeTolerant'],
+  chives: ['garnish', 'aromatic', 'containerFriendly', 'pollinator', 'edibleFlower'],
+  tomato: ['versatile', 'highVitaminC', 'preservable', 'containerFriendly'],
+  pepper: ['highVitaminC', 'versatile', 'containerFriendly'],
+  courgette: ['versatile', 'quickReturn', 'edibleFlower'],
+  pumpkin: ['calorieDense', 'storesWell', 'highVitaminA'],
+  squash: ['calorieDense', 'storesWell', 'highVitaminA'],
+  cucumber: ['quickReturn', 'containerFriendly', 'preservable'],
+  mint: ['aromatic', 'versatile', 'containerFriendly', 'garnish', 'shadeTolerant'],
+  basil: ['aromatic', 'versatile', 'garnish', 'containerFriendly'],
+  rosemary: ['aromatic', 'droughtTolerant', 'pollinator'],
+  thyme: ['aromatic', 'droughtTolerant', 'pollinator', 'containerFriendly'],
+  sage: ['aromatic', 'droughtTolerant', 'pollinator'],
+  oregano: ['aromatic', 'droughtTolerant', 'pollinator'],
+  parsley: ['garnish', 'highVitaminC', 'containerFriendly'],
+  cilantro: ['garnish', 'aromatic', 'quickReturn'],
+  dill: ['garnish', 'aromatic', 'pollinator'],
+  lemonbalm: ['aromatic', 'containerFriendly', 'pollinator'],
+  lemongrass: ['aromatic', 'versatile'],
+  nasturtium: ['edibleFlower', 'ornamentalOnPlate', 'garnish', 'pollinator'],
+  borage: ['edibleFlower', 'ornamentalOnPlate', 'pollinator'],
+  marigold: ['edibleFlower', 'ornamentalOnPlate', 'pollinator'],
+  sunflower: ['pollinator', 'highProtein'],
+  strawberry: ['highVitaminC', 'containerFriendly', 'pollinator'],
+  raspberry: ['highVitaminC', 'preservable'],
+  blackberry: ['highVitaminC', 'preservable'],
+  blackcurrant: ['highVitaminC', 'preservable', 'shadeTolerant'],
+  apple: ['storesWell', 'versatile', 'pollinator'],
+  rhubarb: ['preservable', 'shadeTolerant'],
+  medlar: ['storesWell'],
+};
+for (const species of SPECIES) {
+  if (TRAITS[species.id]) species.traits = TRAITS[species.id];
+}
 
 export function speciesById(id: string): Species {
   return SPECIES.find((s) => s.id === id) ?? SPECIES[0];

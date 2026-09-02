@@ -6,6 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Card, ContentColumn, EmptyState, Input, Pill, SectionHeader, SheetBar } from '../components/ui';
 import { PlantSprite } from '../components/PlantSprite';
+import { TraitChips } from '../components/TraitChips';
 import { useGarden } from '../state/GardenContext';
 import {
   CATEGORY_ORDER, SPECIES, Species, categoryLabel, difficultyLabel, lightLabel,
@@ -248,6 +249,7 @@ function SpeciesRow({ species, inSeason, isSelected, nickname, onNickname, onPre
             <Pill text={difficultyLabel(species.difficulty)} icon="speedometer" tint="soil" />
           </View>
           <Text style={type.body}>{species.tip}</Text>
+          <TraitChips traits={species.traits} />
         </View>
       ) : null}
     </View>

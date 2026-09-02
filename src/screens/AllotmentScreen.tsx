@@ -67,6 +67,9 @@ export function AllotmentScreen() {
                 />
                 <Text style={[type.title, tabular]}>{Math.round(garden.weather.temperatureC)}°</Text>
                 <Text style={type.caption}>{conditionLabel[garden.weather.condition]}</Text>
+                <Text style={[type.caption, { color: color.textTertiary }]} numberOfLines={1}>
+                  {garden.weather.simulated ? 'Typical for now' : garden.weather.placeName}
+                </Text>
               </View>
             ) : (
               <View style={styles.weather} />
