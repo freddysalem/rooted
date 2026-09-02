@@ -29,7 +29,7 @@ const MONTH_NAMES = [
 /// No camera is needed for the maths: the compass gives the bearing, the date and your
 /// coordinates give the sun's track, and the only judgement call left is how enclosed
 /// the spot is, which you set yourself.
-export function SunSpotScreen() {
+export function SunSpotScreen({ active = true }: { active?: boolean } = {}) {
   const garden = useGarden();
   const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [heading, setHeading] = useState(180);
@@ -150,7 +150,7 @@ export function SunSpotScreen() {
           </Text>
           <Text style={styles.hours}>{hours.toFixed(1)} hours of direct sun</Text>
           <View style={{ flexDirection: 'row' }}>
-            <Pill text={`Suits ${lightLabel[need].toLowerCase()} plants`} icon="sunny" tint={Theme.sun} />
+            <Pill text={`Suits ${lightLabel[need].toLowerCase()} plants`} icon="sunny" tint="sun" />
           </View>
           <Text style={styles.subtle}>{explanation}</Text>
         </View>

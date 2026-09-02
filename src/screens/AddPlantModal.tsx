@@ -89,9 +89,9 @@ export function AddPlantModal({ plot, onClose }: { plot: number | null; onClose:
                     style={styles.input}
                   />
                   <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
-                    <Pill text={lightLabel[selected.light]} icon="sunny" tint={Theme.sun} />
+                    <Pill text={lightLabel[selected.light]} icon="sunny" tint="sun" />
                     <Pill text={`${selected.daysToHarvest} days`} icon="calendar" />
-                    <Pill text={difficultyLabel(selected.difficulty)} icon="speedometer" tint={Theme.soil} />
+                    <Pill text={difficultyLabel(selected.difficulty)} icon="speedometer" tint="soil" />
                   </View>
                   <Text style={styles.tip}>{selected.tip}</Text>
                 </View>

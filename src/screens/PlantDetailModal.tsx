@@ -106,7 +106,7 @@ export function PlantDetailModal({ planting, onClose }: {
 
               <View style={{ flexDirection: 'row', gap: 6 }}>
                 <Pill text={stageLabel[stageOf(planting)]} icon="leaf" />
-                <Pill text={lightLabel[species.light]} icon="sunny" tint={Theme.sun} />
+                <Pill text={lightLabel[species.light]} icon="sunny" tint="sun" />
               </View>
 
               <View style={{ width: '100%', gap: 6 }}>
