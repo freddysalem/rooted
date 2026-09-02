@@ -5,10 +5,12 @@ import {
 import Svg, { Circle, Ellipse, G, Path, Polygon, Rect } from 'react-native-svg';
 import { PlantSprite } from './PlantSprite';
 import { Homestead, PetSprite, homeFootprint } from './Homestead';
-import { Planting, getSpecies, latestHeight, plotLayout, progressOf, seedOf } from '../models/planting';
+import { Button, IconButton } from './ui';
+import { Planting, getSpecies, latestHeight, plotLayout, progressOf, seedOf, stageLabel, stageOf } from '../models/planting';
 import { HomeColourId, HomeTier, Pet } from '../models/progress';
 import { Species } from '../models/species';
-import { Theme } from '../theme';
+import { color, radius, space } from '../theme';
+import { useReduceMotion } from '../hooks/useReduceMotion';
 
 /// The farm, drawn as ground you look across rather than a grid you look down on.
 ///
@@ -28,7 +30,8 @@ const GRASS = '#74C05A';
 const MIN_SCALE = 0.4;
 const MAX_SCALE = 2.4;
 const DRAG_SLOP = 4;      // below this a touch is a tap, not a drag
-const LABEL_SCALE = 0.72; // below this, names are dropped - a full plot is a wall of text
+const LABEL_SCALE = 0.6;  // below this, names are dropped - a full plot is a wall of text
+const HIT_W = 64;         // a plant's touch area: the sprite and its name, not the whole bed
 
 /// Must match the floor inside PlantSprite, which never draws a plant at zero size.
 const SPRITE_FLOOR = 0.3;
@@ -84,6 +87,9 @@ function buildWorld(tileCount: number, tier: HomeTier, pets: Pet[]) {
     worldH: maxY - minY + padY * 2 + FIELD_DEPTH,
     contentW: maxX - minX + foot.width,
     contentH: maxY - minY + foot.height + FIELD_DEPTH,
+    // The house stands *above* its anchor point, so the visible scene sits higher in
+    // the world than the anchors do. Shift by this much to centre what is drawn.
+    contentOffsetY: foot.height / 2,
   };
 }
 
@@ -108,9 +114,11 @@ function scatter(seed: number) {
 }
 
 export function IsoPlot({
-  plantings, isThirsty, onOpenPlant, onPlantEmpty, homeTier, homeColour, pets,
+  plantings, isThirsty, onOpenPlant, onPlantEmpty, homeTier, homeColour, pets, controls = true,
 }: {
   plantings: Planting[];
+  /** Zoom and recentre buttons. Pointless on an empty plot, so the home screen hides them. */
+  controls?: boolean;
   isThirsty: (planting: Planting) => boolean;
   onOpenPlant: (planting: Planting) => void;
   onPlantEmpty: (plot: number) => void;
@@ -174,20 +182,23 @@ export function IsoPlot({
       MIN_SCALE,
       MAX_SCALE
     );
-    state.current = { scale: next, tx: 0, ty: 0 };
+    const centreY = next * world.contentOffsetY;
+    state.current = { scale: next, tx: 0, ty: centreY };
     scale.setValue(next);
     tx.setValue(0);
-    ty.setValue(0);
+    ty.setValue(centreY);
     showLabels(next);
   };
 
   const onLayout = (event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
     setViewport({ width, height });
-    if (!state.current.tx && !state.current.ty && state.current.scale === 1) {
+    if (!fitted.current) {
+      fitted.current = true;
       fit({ width, height });
     }
   };
+  const fitted = useRef(false);
 
   // Planting the first bed of a new row changes the whole field, so reframe on it.
   const lastFit = useRef('');
@@ -288,21 +299,25 @@ export function IsoPlot({
 
         <Pressable
           onPress={() => onPlantEmpty(addIndex)}
-          style={[styles.hit, { left: addAt.x - TILE_W / 2, top: addAt.y - TILE_H / 2 }]}
+          accessibilityRole="button"
+          accessibilityLabel="Empty bed. Plant something here"
+          style={({ pressed }) => [
+            styles.hit,
+            { left: addAt.x - TILE_W / 2, top: addAt.y - TILE_H / 2 },
+            pressed && styles.hitPressed,
+          ]}
         />
       </Animated.View>
 
-      <View style={styles.controls}>
-        <Pressable style={styles.round} onPress={() => zoomBy(1.35)} hitSlop={6}>
-          <Text style={styles.roundText}>+</Text>
-        </Pressable>
-        <Pressable style={styles.round} onPress={() => zoomBy(1 / 1.35)} hitSlop={6}>
-          <Text style={styles.roundText}>-</Text>
-        </Pressable>
-        <Pressable style={styles.recentre} onPress={() => fit()} hitSlop={6}>
-          <Text style={styles.recentreText}>Recentre</Text>
-        </Pressable>
-      </View>
+      {controls ? (
+        <View style={styles.controls}>
+          <IconButton icon="add" label="Zoom in" onPress={() => zoomBy(1.35)} />
+          <IconButton icon="remove" label="Zoom out" onPress={() => zoomBy(1 / 1.35)} />
+          <View style={styles.recentre}>
+            <Button label="Recentre" tone="quiet" compact onPress={() => fit()} />
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -452,13 +467,19 @@ function PlantOnPlot({ planting, x, y, thirsty, labelled, onPress }: {
   // Mirrors the sprite's own internal scale, so the marker tracks the top of the plant
   // as it grows rather than hovering over empty space above a seedling.
   const drawnHeight = fullHeight * (SPRITE_FLOOR + (1 - SPRITE_FLOOR) * clamp(growth, 0, 1));
+  // The touch area is as wide as the sprite and its name, not the whole bed, so
+  // neighbours in the isometric grid no longer overlap each other.
+  const hitWidth = Math.max(HIT_W, Math.min(fullHeight, TILE_W * 0.6));
 
   return (
     <Pressable
       onPress={onPress}
-      style={[
+      accessibilityRole="button"
+      accessibilityLabel={`${planting.nickname}, ${species.name}, ${stageLabel[stageOf(planting)].toLowerCase()}${thirsty ? ', needs water' : ''}`}
+      style={({ pressed }) => [
         styles.plant,
-        { left: x - TILE_W / 2, top: y - fullHeight + TILE_H * 0.18, width: TILE_W },
+        { left: x - hitWidth / 2, top: y - fullHeight + TILE_H * 0.18, width: hitWidth },
+        pressed && { transform: [{ scale: 0.94 }] },
       ]}
     >
       {thirsty ? <WaterMarker top={fullHeight - drawnHeight - 26} /> : null}
@@ -469,7 +490,9 @@ function PlantOnPlot({ planting, x, y, thirsty, labelled, onPress }: {
         height={fullHeight}
       />
       {labelled ? (
-        <Text numberOfLines={1} style={styles.name}>{planting.nickname}</Text>
+        <View style={styles.namePill}>
+          <Text numberOfLines={1} style={styles.name}>{planting.nickname}</Text>
+        </View>
       ) : null}
     </Pressable>
   );
@@ -478,8 +501,13 @@ function PlantOnPlot({ planting, x, y, thirsty, labelled, onPress }: {
 /// The hovering drop. It bobs so it reads as a prompt rather than part of the plant.
 function WaterMarker({ top }: { top: number }) {
   const bob = useRef(new Animated.Value(0)).current;
+  const reduceMotion = useReduceMotion();
 
   useEffect(() => {
+    if (reduceMotion) {
+      bob.setValue(0.5);
+      return;
+    }
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(bob, { toValue: 1, duration: 900, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
@@ -488,7 +516,7 @@ function WaterMarker({ top }: { top: number }) {
     );
     loop.start();
     return () => loop.stop();
-  }, [bob]);
+  }, [bob, reduceMotion]);
 
   const lift = bob.interpolate({ inputRange: [0, 1], outputRange: [0, -6] });
 
@@ -517,40 +545,32 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  hit: { position: 'absolute', width: TILE_W, height: TILE_H },
+  hit: { position: 'absolute', width: TILE_W, height: TILE_H, borderRadius: TILE_H / 2 },
+  hitPressed: { backgroundColor: 'rgba(255,255,255,0.18)' },
   plant: { position: 'absolute', alignItems: 'center' },
   marker: { position: 'absolute', zIndex: 2 },
+  namePill: {
+    marginTop: -2,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(255,255,255,0.82)',
+    maxWidth: TILE_W * 0.9,
+  },
   name: {
     textAlign: 'center',
-    fontSize: 11,
+    fontSize: 12,
+    lineHeight: 15,
     fontWeight: '700',
-    color: '#FFF',
-    textShadowColor: 'rgba(0,0,0,0.45)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    color: color.text,
   },
   controls: {
     position: 'absolute',
-    right: 10,
-    bottom: 10,
+    right: space.md,
+    bottom: space.md,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: space.sm,
   },
-  round: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.9)',
-  },
-  roundText: { fontSize: 19, fontWeight: '700', color: Theme.leafDeep, lineHeight: 22 },
-  recentre: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.9)',
-  },
-  recentreText: { fontSize: 12, fontWeight: '700', color: Theme.leafDeep },
+  recentre: { borderRadius: radius.sm, backgroundColor: color.surface, overflow: 'hidden' },
 });
