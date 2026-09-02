@@ -61,3 +61,19 @@ State lives in one React context and persists to AsyncStorage.
 - Social feed, community diary and the bee messenger need a backend and accounts.
 - Subscription billing isn't wired up; in-app purchases need a development build, not
   Expo Go.
+
+## Screenshots
+
+`scripts/screenshots.mjs` drives the web build in headless Chrome, seeds a garden, taps
+through every flow and writes PNGs at 375px and 1280px. It needs Chrome in
+`/Applications` and nothing else that isn't already installed.
+
+```bash
+npx expo start --web --port 8110     # in one terminal
+npm run shots                        # full walkthrough into shots/<timestamp>/
+npm run shots -- --out shots/before  # named folder, for before/after comparisons
+node scripts/screenshots.mjs --device mobile --garden small tap:Discover shot:discover
+```
+
+Steps are `shot:name`, `tap:Text`, `tapfuzzy:Text`, `type:Placeholder=text`, `scroll:px`
+and `wait:ms`. The run exits non-zero if a step fails, and prints any console errors.

@@ -42,3 +42,6 @@ yarn-error.*
 
 # web export
 dist-web/
+
+# screenshots from scripts/screenshots.mjs
+shots/
