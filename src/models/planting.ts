@@ -25,6 +25,9 @@ export interface Planting {
   /** Under a roof - a windowsill, a greenhouse, a porch. Rain never reaches it, so the
       forecast cannot be allowed to excuse a watering. Absent means outdoors. */
   indoors?: boolean;
+  /** The sun survey for the spot this is standing in, if one was taken. Movable: pots
+      get carried to better light, and the app should be told when they do. */
+  surveyId?: string | null;
 }
 
 export type GrowthStage = 'sown' | 'sprouting' | 'growing' | 'established' | 'ready';

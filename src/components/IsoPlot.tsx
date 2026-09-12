@@ -149,6 +149,9 @@ export function IsoPlot({
   const tx = useRef(new Animated.Value(0)).current;
   const ty = useRef(new Animated.Value(0)).current;
   const state = useRef({ scale: 1, tx: 0, ty: 0 });
+  // Set the moment a gesture turns into a drag, and cleared a beat after it ends. A drag
+  // that finishes over a bed must not also plant something in it.
+  const panned = useRef(0);
   const gesture = useRef({ scale: 1, tx: 0, ty: 0, distance: 0, focal: { x: 0, y: 0 } });
 
   const showLabels = (value: number) => {
@@ -260,11 +263,19 @@ export function IsoPlot({
             return;
           }
 
+          panned.current = Date.now();
           apply({ scale: start.scale, tx: start.tx + g.dx, ty: start.ty + g.dy });
         },
+        onPanResponderRelease: () => { panned.current = Date.now(); },
+        onPanResponderTerminate: () => { panned.current = Date.now(); },
       }),
     [viewport.width, viewport.height, world]
   );
+
+  /// A press only counts if the finger was not just dragging the ground about.
+  const afterPan = () => Date.now() - panned.current < 220;
+  const pressPlant = (planting: Planting) => { if (!afterPan()) onOpenPlant(planting); };
+  const pressEmpty = (plot: number) => { if (!afterPan()) onPlantEmpty(plot); };
 
   const addIndex = ordered.length;
   const addAt = positionOf(addIndex);
@@ -305,13 +316,13 @@ export function IsoPlot({
               y={y}
               thirsty={isThirsty(planting)}
               labelled={labelled}
-              onPress={() => onOpenPlant(planting)}
+              onPress={() => pressPlant(planting)}
             />
           );
         })}
 
         <Pressable
-          onPress={() => onPlantEmpty(addIndex)}
+          onPress={() => pressEmpty(addIndex)}
           accessibilityRole="button"
           accessibilityLabel="Empty bed. Plant something here"
           style={({ pressed }) => [

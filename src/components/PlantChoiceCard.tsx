@@ -7,6 +7,9 @@ import { GrowthStrip } from './GrowthStrip';
 import { TraitChips } from './TraitChips';
 import { Species, difficultyLabel, lightLabel, lookOf } from '../models/species';
 import { CONTAINERS } from '../services/water';
+import { recommendationFor } from '../services/recommend';
+import { SunSurvey, surveyLightLabel } from '../models/survey';
+import { useGarden } from '../state/GardenContext';
 import { color, radius, space, type } from '../theme';
 import * as haptics from '../services/haptics';
 
@@ -21,6 +24,8 @@ import * as haptics from '../services/haptics';
 export interface PlantChoice {
   containerId: string;
   indoors: boolean;
+  /** Which measured spot it is going in, if the grower has surveyed any. */
+  surveyId?: string | null;
 }
 
 export function PlantChoiceCard({
@@ -35,6 +40,11 @@ export function PlantChoiceCard({
   /** Off when the row above the card already names the plant. */
   showHead?: boolean;
 }) {
+  const garden = useGarden();
+  const advice = recommendationFor(species, garden.region);
+  const surveys = garden.surveys;
+  const chosenSpot = surveys.find((s) => s.id === choice.surveyId) ?? null;
+
   return (
     <View style={styles.card}>
       {showHead ? (
@@ -68,13 +78,14 @@ export function PlantChoiceCard({
         <View style={styles.containerRow}>
           {CONTAINERS.map((option) => {
             const on = choice.containerId === option.id;
+            const best = advice.containerId === option.id;
             return (
               <Pressable
                 key={option.id}
                 onPress={() => { haptics.selection(); onChoice({ ...choice, containerId: option.id }); }}
                 accessibilityRole="radio"
                 accessibilityState={{ selected: on }}
-                accessibilityLabel={`${option.label}, ${option.detail}`}
+                accessibilityLabel={`${option.label}, ${option.detail}${best ? ', recommended' : ''}`}
                 style={({ pressed }) => [
                   styles.containerChip,
                   on && styles.containerChipOn,
@@ -83,6 +94,7 @@ export function PlantChoiceCard({
               >
                 <Text style={[styles.containerLabel, on && { color: color.textOnBrand }]}>
                   {option.label}
+                  {best ? <Text style={[styles.recommended, on && { color: color.brandPale }]}>  Recommended</Text> : null}
                 </Text>
                 <Text style={[styles.containerDetail, on && { color: color.brandPale }]}>
                   {option.detail}
@@ -102,6 +114,7 @@ export function PlantChoiceCard({
             label="Outdoors"
             detail="Rain counts towards its watering"
             on={!choice.indoors}
+            best={!advice.indoors}
             onPress={() => onChoice({ ...choice, indoors: false })}
           />
           <PlaceOption
@@ -109,15 +122,45 @@ export function PlantChoiceCard({
             label="Indoors"
             detail="Windowsill, greenhouse or porch"
             on={choice.indoors}
+            best={advice.indoors}
             onPress={() => onChoice({ ...choice, indoors: true })}
           />
         </View>
+        <Text style={type.caption}>{advice.why}</Text>
         <Text style={type.caption}>
           {choice.indoors
             ? 'Nothing the sky does will water this one, so the reminders will never tell you to skip it.'
             : 'After heavy rain the app will tell you to leave it alone.'}
         </Text>
       </View>
+
+      {/* Where it is standing, measured. Sun hours are the difference between a
+          tomato that ripens and one that sulks, so if the grower has surveyed any
+          spots they get to say which one this is going into - and the advice for
+          this plant is written against that reading from then on. */}
+      {surveys.length > 0 ? (
+        <View style={{ gap: space.sm }}>
+          <Text style={type.label}>Which spot?</Text>
+          <View style={styles.spotRow}>
+            <SpotOption
+              label="Not measured"
+              detail="Use the plant's own light needs"
+              on={!choice.surveyId}
+              onPress={() => onChoice({ ...choice, surveyId: null })}
+            />
+            {surveys.map((survey) => (
+              <SpotOption
+                key={survey.id}
+                label={survey.name}
+                detail={`${surveyLightLabel(survey.sunHours)} · ${survey.sunHours.toFixed(1)}h`}
+                on={choice.surveyId === survey.id}
+                onPress={() => onChoice({ ...choice, surveyId: survey.id })}
+              />
+            ))}
+          </View>
+          {chosenSpot ? <Text style={type.caption}>{spotVerdict(species, chosenSpot)}</Text> : null}
+        </View>
+      ) : null}
 
       <Input
         label="Name it (optional)"
@@ -132,8 +175,18 @@ export function PlantChoiceCard({
   );
 }
 
-function PlaceOption({ icon, label, detail, on, onPress }: {
-  icon: keyof typeof Ionicons.glyphMap;
+/// Does this plant actually want what this spot gets? Said plainly, and never as a
+/// refusal - people grow tomatoes in shade and get three tomatoes, and that is their
+/// business. It is worth knowing beforehand though.
+function spotVerdict(species: Species, survey: SunSurvey): string {
+  const needs = species.light === 'fullSun' ? 6 : species.light === 'partialShade' ? 3 : 0;
+  const hours = survey.sunHours;
+  if (hours + 0.5 >= needs) return `${survey.name} gets ${hours.toFixed(1)} hours, which suits ${species.name.toLowerCase()}.`;
+  if (hours >= needs - 2) return `${survey.name} is a little short of what ${species.name.toLowerCase()} likes - expect it to be slower.`;
+  return `${survey.name} gets ${hours.toFixed(1)} hours and ${species.name.toLowerCase()} wants about ${needs}. It will grow, but leggy and late.`;
+}
+
+function SpotOption({ label, detail, on, onPress }: {
   label: string;
   detail: string;
   on: boolean;
@@ -146,13 +199,42 @@ function PlaceOption({ icon, label, detail, on, onPress }: {
       accessibilityState={{ selected: on }}
       accessibilityLabel={`${label}. ${detail}`}
       style={({ pressed }) => [
+        styles.containerChip,
+        on && styles.containerChipOn,
+        pressed && !on && { backgroundColor: color.surfacePressed },
+      ]}
+    >
+      <Text style={[styles.containerLabel, on && { color: color.textOnBrand }]} numberOfLines={1}>{label}</Text>
+      <Text style={[styles.containerDetail, on && { color: color.brandPale }]} numberOfLines={1}>{detail}</Text>
+    </Pressable>
+  );
+}
+
+function PlaceOption({ icon, label, detail, on, best, onPress }: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  detail: string;
+  on: boolean;
+  best?: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={() => { haptics.selection(); onPress(); }}
+      accessibilityRole="radio"
+      accessibilityState={{ selected: on }}
+      accessibilityLabel={`${label}. ${detail}${best ? '. Recommended' : ''}`}
+      style={({ pressed }) => [
         styles.place,
         on && styles.placeOn,
         pressed && !on && { backgroundColor: color.surfacePressed },
       ]}
     >
       <Ionicons name={icon} size={20} color={on ? color.textOnBrand : color.textSecondary} />
-      <Text style={[styles.containerLabel, on && { color: color.textOnBrand }]}>{label}</Text>
+      <Text style={[styles.containerLabel, on && { color: color.textOnBrand }]}>
+        {label}
+        {best ? <Text style={[styles.recommended, on && { color: color.brandPale }]}>  Recommended</Text> : null}
+      </Text>
       <Text style={[styles.containerDetail, on && { color: color.brandPale }]}>{detail}</Text>
     </Pressable>
   );
@@ -193,4 +275,6 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   placeOn: { backgroundColor: color.brand },
+  recommended: { fontSize: 10, lineHeight: 13, fontWeight: '700', color: color.brandDeep },
+  spotRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
 });

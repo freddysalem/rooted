@@ -11,6 +11,7 @@ import { useGarden } from '../state/GardenContext';
 import {
   CATEGORY_ORDER, SPECIES, Species, categoryLabel, difficultyLabel, lightLabel, lookOf } from '../models/species';
 import { CONTAINERS } from '../services/water';
+import { recommendationFor } from '../services/recommend';
 import { color, motion, radius, size, space, type } from '../theme';
 import * as haptics from '../services/haptics';
 import { useReduceMotion } from '../hooks/useReduceMotion';
@@ -46,13 +47,21 @@ export function AddPlantModal({ plot, onClose, initialSpecies = null }: {
   const [openCategories, setOpenCategories] = useState<Set<string>>(() => new Set());
   // Asked once, here, because together they decide how much water the reminders tell
   // you to give it - and nobody wants to be asked that on a notification.
-  const [choice, setChoice] = useState<PlantChoice>({ containerId: 'bed', indoors: false });
+  const [choice, setChoice] = useState<PlantChoice>({ containerId: 'bed', indoors: false, surveyId: null });
   const reduceMotion = useReduceMotion();
   const open = plot !== null;
 
   useEffect(() => {
     if (open) setSelected(initialSpecies);
   }, [open, initialSpecies?.id]);
+
+  // Whatever is chosen, start it on the recommendation rather than on "open ground" -
+  // the grower can override it, but the default should be the right answer.
+  useEffect(() => {
+    if (!selected) return;
+    const advice = recommendationFor(selected, garden.region);
+    setChoice((current) => ({ ...current, containerId: advice.containerId, indoors: advice.indoors }));
+  }, [selected?.id, garden.region]);
 
   const month = new Date().getMonth() + 1;
   const query = search.trim().toLowerCase();
@@ -116,7 +125,7 @@ export function AddPlantModal({ plot, onClose, initialSpecies = null }: {
   const confirm = () => {
     if (!selected || plot === null) return;
     const chosen = CONTAINERS.find((c) => c.id === choice.containerId) ?? CONTAINERS[5];
-    garden.plant(selected, nickname, plot, { kind: chosen.kind, litres: chosen.litres }, choice.indoors);
+    garden.plant(selected, nickname, plot, { kind: chosen.kind, litres: chosen.litres }, choice.indoors, choice.surveyId ?? null);
     setPlanted(selected);
     setTimeout(close, reduceMotion ? 600 : 1300);
   };

@@ -54,7 +54,9 @@ interface GardenValue {
   wateringAdvice: (planting: Planting) => string;
   totalWaterings: number;
 
-  plant: (species: Species, nickname: string, plot: number, container?: Container, indoors?: boolean) => void;
+  plant: (species: Species, nickname: string, plot: number, container?: Container, indoors?: boolean, surveyId?: string | null) => void;
+  /** Move a plant to a different measured spot - pots get carried about. */
+  setPlantingSpot: (planting: Planting, surveyId: string | null) => void;
   setContainer: (container: Container, planting: Planting) => void;
   /** How much water this one wants right now, and why. */
   waterAdvice: (planting: Planting) => WaterAdvice;
@@ -69,6 +71,8 @@ interface GardenValue {
   surveys: SunSurvey[];
   saveSurvey: (survey: Omit<SunSurvey, 'id' | 'takenOn'>) => SunSurvey;
   renameSurvey: (id: string, name: string) => void;
+  /** Change a saved reading - most often how enclosed the spot is. */
+  updateSurvey: (id: string, changes: Partial<Omit<SunSurvey, 'id'>>) => void;
   removeSurvey: (id: string) => void;
 
   hasEarned: (badge: Badge) => boolean;
@@ -382,7 +386,7 @@ export function GardenProvider({ children }: { children: React.ReactNode }) {
     }
   }, [ready, level]);
 
-  const plant = useCallback((species: Species, nickname: string, plot: number, container?: Container, indoors = false) => {
+  const plant = useCallback((species: Species, nickname: string, plot: number, container?: Container, indoors = false, surveyId: string | null = null) => {
     setPlantings((current) => {
       if (current.some((p) => p.plot === plot)) return current;
       const trimmed = nickname.trim();
@@ -400,11 +404,17 @@ export function GardenProvider({ children }: { children: React.ReactNode }) {
           notes: '',
           container: container ?? DEFAULT_CONTAINER,
           indoors,
+          surveyId,
         },
       ];
     });
     setPlantsEverGrown((n) => n + 1);
     haptics.success();
+  }, []);
+
+  const setPlantingSpot = useCallback((planting: Planting, surveyId: string | null) => {
+    setPlantings((current) => current.map((p) => (p.id === planting.id ? { ...p, surveyId } : p)));
+    haptics.selection();
   }, []);
 
   const water = useCallback((planting: Planting) => {
@@ -457,6 +467,10 @@ export function GardenProvider({ children }: { children: React.ReactNode }) {
   const renameSurvey = useCallback((id: string, name: string) => {
     const trimmed = name.trim();
     setSurveys((current) => current.map((s) => (s.id === id ? { ...s, name: trimmed || s.name } : s)));
+  }, []);
+
+  const updateSurvey = useCallback((id: string, changes: Partial<Omit<SunSurvey, 'id'>>) => {
+    setSurveys((current) => current.map((s) => (s.id === id ? { ...s, ...changes } : s)));
   }, []);
 
   const removeSurvey = useCallback((id: string) => {
@@ -518,7 +532,7 @@ export function GardenProvider({ children }: { children: React.ReactNode }) {
       plantingInPlot, firstEmptyPlot, thirsty,
       needsWater, wateringInterval, wateringAdvice, totalWaterings,
       plant, water, recordHeight, updateNotes, removePlanting, markSunSurveyed,
-      surveys, saveSurvey, renameSurvey, removeSurvey,
+      surveys, saveSurvey, renameSurvey, updateSurvey, removeSurvey, setPlantingSpot,
       setContainer, waterAdvice, remindersOn, enableReminders,
       hasEarned, earnedCount, medals, cropsUnmedalled,
       streak, plantsEverGrown, level, progress,
@@ -531,7 +545,7 @@ export function GardenProvider({ children }: { children: React.ReactNode }) {
       plantingInPlot, firstEmptyPlot, thirsty,
       needsWater, wateringInterval, wateringAdvice, totalWaterings,
       plant, water, recordHeight, updateNotes, removePlanting, markSunSurveyed,
-      surveys, saveSurvey, renameSurvey, removeSurvey,
+      surveys, saveSurvey, renameSurvey, updateSurvey, removeSurvey, setPlantingSpot,
       setContainer, waterAdvice, remindersOn, enableReminders,
       hasEarned, earnedCount, medals, cropsUnmedalled,
       streak, plantsEverGrown, level, progress,

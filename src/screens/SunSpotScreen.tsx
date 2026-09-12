@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Line, Text as SvgText } from 'react-native-svg';
 import Slider from '@react-native-community/slider';
 import * as Location from 'expo-location';
@@ -81,7 +81,7 @@ export function SunSpotScreen({ active = true }: { active?: boolean }) {
 
   // Position once, heading continuously - but only while this tab is on screen.
   useEffect(() => {
-    if (locationState !== 'granted' || !active) return;
+    if (locationState !== 'granted' || !active || naming) return;
     let headingSubscription: Location.LocationSubscription | null = null;
     let cancelled = false;
     (async () => {
@@ -107,11 +107,16 @@ export function SunSpotScreen({ active = true }: { active?: boolean }) {
       cancelled = true;
       headingSubscription?.remove();
     };
-  }, [locationState, active]);
+  }, [locationState, active, naming]);
 
   const latitude = coords?.latitude ?? FALLBACK.latitude;
   const longitude = coords?.longitude ?? FALLBACK.longitude;
-  const bearing = lockedBearing ?? heading;
+  // While the survey is being named, everything holds still. You have already taken the
+  // reading; the compass swinging about as you type - and the sun hours changing under
+  // you as the phone turns - would mean saving a different spot from the one measured.
+  const frozen = useRef<{ bearing: number; obstruction: number } | null>(null);
+  const scroller = useRef<ScrollView>(null);
+  const bearing = naming && frozen.current ? frozen.current.bearing : (lockedBearing ?? heading);
   const locked = lockedBearing !== null;
 
   // The sun's track depends only on the day and the coordinates, so it is computed
@@ -150,6 +155,23 @@ export function SunSpotScreen({ active = true }: { active?: boolean }) {
     : obstruction < 28 ? 'Hemmed in by fences'
     : 'Overshadowed by buildings';
 
+  const startSurvey = () => {
+    haptics.selection();
+    frozen.current = { bearing: lockedBearing ?? heading, obstruction };
+    setSaved(false);
+    setNaming(true);
+    // The name field is near the bottom of a long screen; without this the keyboard
+    // comes up over it and you type blind.
+    setTimeout(() => scroller.current?.scrollToEnd({ animated: true }), 120);
+  };
+
+  const cancelSurvey = () => {
+    haptics.selection();
+    frozen.current = null;
+    setNaming(false);
+    setSpotName('');
+  };
+
   const saveSurvey = () => {
     const fallbackName = `${aspectLabel(bearing)}-facing spot`;
     garden.saveSurvey({
@@ -164,6 +186,7 @@ export function SunSpotScreen({ active = true }: { active?: boolean }) {
     setSaved(true);
     setNaming(false);
     setSpotName('');
+    frozen.current = null;
   };
 
   const locationNote = (() => {
@@ -174,7 +197,17 @@ export function SunSpotScreen({ active = true }: { active?: boolean }) {
   })();
 
   return (
-    <ScrollView style={{ backgroundColor: color.canvas }} contentContainerStyle={styles.scroll}>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+    <ScrollView
+      style={{ backgroundColor: color.canvas }}
+      contentContainerStyle={styles.scroll}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
+      ref={scroller}
+    >
       <ContentColumn style={{ gap: size.cardGap }}>
         <View style={styles.intro}>
           <Text style={type.title} accessibilityRole="header">Sun spot</Text>
@@ -314,6 +347,13 @@ export function SunSpotScreen({ active = true }: { active?: boolean }) {
           <View style={{ marginTop: space.md, gap: space.sm }}>
             {naming ? (
               <>
+                <View style={styles.frozenNote}>
+                  <Ionicons name="snow-outline" size={15} color={color.waterText} />
+                  <Text style={[type.caption, { flex: 1, color: color.waterText }]}>
+                    Reading held at {hours.toFixed(1)} hours, {compassLabel(bearing)}. Move the
+                    phone all you like.
+                  </Text>
+                </View>
                 <Input
                   label="Name this spot"
                   value={spotName}
@@ -328,14 +368,10 @@ export function SunSpotScreen({ active = true }: { active?: boolean }) {
                   Something you will recognise later - "by the back fence", "the balcony end".
                 </Text>
                 <Button label="Save this spot" icon="bookmark" onPress={saveSurvey} />
+                <Button label="Cancel" tone="quiet" onPress={cancelSurvey} />
               </>
             ) : (
-              <Button
-                label={saved ? 'Spot saved' : 'Save this spot'}
-                icon={saved ? 'checkmark' : 'bookmark-outline'}
-                tone={saved ? 'quiet' : 'solid'}
-                onPress={() => { haptics.selection(); setSaved(false); setNaming(true); }}
-              />
+              <Button label="Create a survey" icon="add" onPress={startSurvey} />
             )}
             {saved ? (
               <Text style={[type.caption, { textAlign: 'center', color: color.brandDeep }]}>
@@ -374,6 +410,7 @@ export function SunSpotScreen({ active = true }: { active?: boolean }) {
         onClose={() => setPlanting(null)}
       />
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -457,6 +494,14 @@ function SunDial({ arc, bearing, current, obstruction }: {
 }
 
 const styles = StyleSheet.create({
+  frozenNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    padding: space.sm,
+    borderRadius: radius.sm,
+    backgroundColor: color.waterTint,
+  },
   surveysTile: {
     flexDirection: 'row',
     alignItems: 'center',

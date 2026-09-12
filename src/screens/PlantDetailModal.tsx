@@ -8,13 +8,14 @@ import {
 import { PlantSprite } from '../components/PlantSprite';
 import { TraitChips } from '../components/TraitChips';
 import { MilestoneTrack } from '../components/MilestoneTrack';
+import { surveyLightLabel } from '../models/survey';
 import { useGarden } from '../state/GardenContext';
 import { CONTAINERS, DEFAULT_CONTAINER, containerLabel, inEverydayTerms } from '../services/water';
 import {
   Planting, daysBetween, daysSincePlanting, daysUntilHarvest, getSpecies, heightGain,
   latestHeight, progressOf, seedOf, sortedHeights, stageLabel, stageOf,
 } from '../models/planting';
-import { lightLabel, lookOf } from '../models/species';
+import { lightLabel, lightMinimumHours, lookOf } from '../models/species';
 import { color, radius, size, space, tabular, type } from '../theme';
 import * as haptics from '../services/haptics';
 import { confirmDestructive } from '../services/confirm';
@@ -71,6 +72,8 @@ export function PlantDetailModal({ planting, onClose }: {
 
   const species = getSpecies(planting);
   const progress = progressOf(planting);
+  const spot = garden.surveys.find((survey) => survey.id === planting.surveyId) ?? null;
+  const needsMoreLight = spot ? spot.sunHours + 0.5 < lightMinimumHours[species.light] : false;
   const heights = sortedHeights(planting);
   const gain = heightGain(planting);
   const latest = latestHeight(planting);
@@ -162,6 +165,62 @@ export function PlantDetailModal({ planting, onClose }: {
                         : `${daysUntilHarvest(planting)} days to harvest`}
                     </Text>
                   </View>
+                </View>
+
+                {/* Pots get moved. When one does, the app has to be told, or it goes on
+                    giving advice for a spot the plant left. */}
+                <View style={{ gap: space.sm }}>
+                  <Text style={type.label}>Standing in</Text>
+                  <View style={styles.containerRow}>
+                    <Pressable
+                      onPress={() => garden.setPlantingSpot(planting, null)}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: !planting.surveyId }}
+                      accessibilityLabel="Not a measured spot"
+                      style={({ pressed }) => [
+                        styles.containerChip,
+                        !planting.surveyId && styles.containerChipOn,
+                        pressed && planting.surveyId ? { backgroundColor: color.surfacePressed } : null,
+                      ]}
+                    >
+                      <Text style={[styles.containerLabel, !planting.surveyId && { color: color.textOnBrand }]}>
+                        Not measured
+                      </Text>
+                    </Pressable>
+                    {garden.surveys.map((survey) => {
+                      const on = planting.surveyId === survey.id;
+                      return (
+                        <Pressable
+                          key={survey.id}
+                          onPress={() => garden.setPlantingSpot(planting, survey.id)}
+                          accessibilityRole="radio"
+                          accessibilityState={{ selected: on }}
+                          accessibilityLabel={`${survey.name}, ${survey.sunHours.toFixed(1)} hours of sun`}
+                          style={({ pressed }) => [
+                            styles.containerChip,
+                            on && styles.containerChipOn,
+                            pressed && !on && { backgroundColor: color.surfacePressed },
+                          ]}
+                        >
+                          <Text style={[styles.containerLabel, on && { color: color.textOnBrand }]} numberOfLines={1}>
+                            {survey.name}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                  {spot ? (
+                    <Text style={type.caption}>
+                      {spot.name} gets {spot.sunHours.toFixed(1)} hours of sun, measured on{' '}
+                      {new Date(spot.takenOn).toLocaleDateString()}. {surveyLightLabel(spot.sunHours)}.
+                      {needsMoreLight ? ` ${species.name} would rather have ${lightMinimumHours[species.light]}.` : ''}
+                    </Text>
+                  ) : garden.surveys.length === 0 ? (
+                    <Text style={type.caption}>
+                      Measure a spot under Sun spot and you can tell the app exactly where this
+                      one is standing.
+                    </Text>
+                  ) : null}
                 </View>
               </View>
             </Card>

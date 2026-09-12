@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { FlatList, Modal, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import Slider from '@react-native-community/slider';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Card, ContentColumn, EmptyState, Input, Pill, SheetBar } from '../components/ui';
 import { useGarden } from '../state/GardenContext';
 import { SunSurvey, aspectLabel, surveyLightLabel } from '../models/survey';
 import { confirmDestructive } from '../services/confirm';
+import { sunArc, sunHoursFromArc } from '../services/sunPath';
 import { color, radius, size, space, tabular, type } from '../theme';
 import * as haptics from '../services/haptics';
 
@@ -13,6 +15,13 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 function takenLabel(iso: string): string {
   const date = new Date(iso);
   return `${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()}`;
+}
+
+function enclosureLabel(obstruction: number): string {
+  if (obstruction < 6) return 'Open field';
+  if (obstruction < 16) return 'Ordinary garden';
+  if (obstruction < 28) return 'Hemmed in by fences';
+  return 'Overshadowed by buildings';
 }
 
 /// Every spot you have measured, side by side.
@@ -24,6 +33,9 @@ export function SurveysModal({ open, onClose }: { open: boolean; onClose: () => 
   const garden = useGarden();
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
+  // Which survey is open for adjusting. Enclosure changes - a fence goes up, a tree comes
+  // down - and re-measuring the whole spot to record that is a silly thing to ask.
+  const [tuning, setTuning] = useState<string | null>(null);
 
   const startRename = (survey: SunSurvey) => {
     haptics.selection();
@@ -34,6 +46,14 @@ export function SurveysModal({ open, onClose }: { open: boolean; onClose: () => 
   const commit = (survey: SunSurvey) => {
     garden.renameSurvey(survey.id, draft);
     setEditing(null);
+  };
+
+  /// Raising a fence does not move the sun, so the hours are recomputed from the survey's
+  /// own coordinates and the day it was taken rather than nudged by hand.
+  const setEnclosure = (survey: SunSurvey, obstruction: number) => {
+    const arc = sunArc(new Date(survey.takenOn), survey.latitude, survey.longitude, 10);
+    const sunHours = sunHoursFromArc(arc, survey.bearing, obstruction, 10);
+    garden.updateSurvey(survey.id, { obstruction, sunHours });
   };
 
   const remove = (survey: SunSurvey) => {
@@ -118,13 +138,46 @@ export function SurveysModal({ open, onClose }: { open: boolean; onClose: () => 
                     <Pill text={`${aspectLabel(item.bearing)}-facing`} icon="compass" tint="soil" />
                   </View>
 
-                  <Text style={[type.caption, tabular]}>
-                    {item.obstruction < 6 ? 'Open field'
-                      : item.obstruction < 16 ? 'Ordinary garden'
-                      : item.obstruction < 28 ? 'Hemmed in by fences'
-                      : 'Overshadowed by buildings'}
-                    {' · '}{Math.round(item.obstruction)}° of horizon blocked
-                  </Text>
+                  <Pressable
+                    onPress={() => {
+                      haptics.selection();
+                      setTuning((current) => (current === item.id ? null : item.id));
+                    }}
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded: tuning === item.id }}
+                    accessibilityLabel={`Adjust how enclosed ${item.name} is`}
+                    style={({ pressed }) => [styles.enclosure, pressed && { backgroundColor: color.surfacePressed }]}
+                  >
+                    <Text style={[type.caption, tabular, { flex: 1 }]}>
+                      {enclosureLabel(item.obstruction)}
+                      {' · '}{Math.round(item.obstruction)}° of horizon blocked
+                    </Text>
+                    <Ionicons
+                      name={tuning === item.id ? 'chevron-up' : 'create-outline'}
+                      size={16}
+                      color={color.textTertiary}
+                    />
+                  </Pressable>
+
+                  {tuning === item.id ? (
+                    <View style={{ gap: space.xs }}>
+                      <Slider
+                        value={item.obstruction}
+                        minimumValue={0}
+                        maximumValue={40}
+                        step={1}
+                        minimumTrackTintColor={color.brand}
+                        maximumTrackTintColor={color.brandPale}
+                        thumbTintColor={color.brand}
+                        onValueChange={(value) => setEnclosure(item, value)}
+                        accessibilityLabel="How enclosed this spot is"
+                      />
+                      <Text style={type.caption}>
+                        The hours above are worked out again from this spot's own position and
+                        the day it was measured. For a different time of year, take a new survey.
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
               </Card>
             </ContentColumn>
@@ -139,6 +192,14 @@ const styles = StyleSheet.create({
   scroll: { paddingVertical: space.md, gap: space.xs },
   head: { flexDirection: 'row', alignItems: 'flex-start', gap: space.sm },
   stats: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  enclosure: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    paddingVertical: space.xs,
+    paddingHorizontal: space.xs,
+    borderRadius: radius.sm,
+  },
   icon: {
     width: 34,
     height: 34,
