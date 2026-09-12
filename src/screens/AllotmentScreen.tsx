@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Button, Card, ContentColumn, EmptyState, ProgressBar } from '../components/ui';
 import { PlotGrid } from '../components/PlotGrid';
 import { HomeStrip } from '../components/HomeStrip';
+import { WeatherTile } from '../components/WeatherTile';
 import { useGarden } from '../state/GardenContext';
 import { Planting } from '../models/planting';
 import { COLOUR_UNLOCK_LEVEL, HOME_COLOURS, levelProgress, petsUpTo } from '../models/progress';
@@ -13,6 +14,7 @@ import * as haptics from '../services/haptics';
 import { useReduceMotion } from '../hooks/useReduceMotion';
 import { AddPlantModal } from './AddPlantModal';
 import { PlantDetailModal } from './PlantDetailModal';
+import { LocationModal } from './LocationModal';
 
 /// The home screen: your plot, seen across the ground rather than down onto a grid.
 ///
@@ -22,6 +24,7 @@ export function AllotmentScreen() {
   const garden = useGarden();
   const [selected, setSelected] = useState<Planting | null>(null);
   const [plotToPlant, setPlotToPlant] = useState<number | null>(null);
+  const [locationOpen, setLocationOpen] = useState(false);
 
   const openPlant = useCallback((planting: Planting) => {
     haptics.pulse();
@@ -61,33 +64,12 @@ export function AllotmentScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: color.canvas }}>
       <ContentColumn style={styles.header}>
-        <Card>
-          <View style={styles.headerRow}>
-            <View style={{ flex: 1, gap: space.xs }}>
-              <Text style={type.title} accessibilityRole="header">{greeting}</Text>
-              <Text style={type.bodyMuted}>{thirstyLine}</Text>
-            </View>
-            {garden.weather ? (
-              <View
-                style={styles.weather}
-                accessibilityLabel={`${Math.round(garden.weather.temperatureC)} degrees, ${conditionLabel[garden.weather.condition]}`}
-              >
-                <Ionicons
-                  name={conditionIcon[garden.weather.condition] as keyof typeof Ionicons.glyphMap}
-                  size={24}
-                  color={color.sun}
-                />
-                <Text style={[type.title, tabular]}>{Math.round(garden.weather.temperatureC)}°</Text>
-                <Text style={type.caption}>{conditionLabel[garden.weather.condition]}</Text>
-                <Text style={[type.caption, { color: color.textTertiary }]} numberOfLines={1}>
-                  {garden.weather.simulated ? 'Typical for now' : garden.weather.placeName}
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.weather} />
-            )}
-          </View>
-        </Card>
+        <WeatherTile
+          greeting={greeting}
+          note={thirstyLine}
+          weather={garden.weather}
+          onOpenLocation={() => setLocationOpen(true)}
+        />
 
         <Card padding={space.md}>
           <View style={{ gap: space.sm }}>
@@ -224,6 +206,7 @@ export function AllotmentScreen() {
         />
       </View>
 
+      <LocationModal open={locationOpen} onClose={() => setLocationOpen(false)} />
       <PlantDetailModal planting={selectedLive} onClose={() => setSelected(null)} />
       <AddPlantModal plot={plotToPlant} onClose={() => setPlotToPlant(null)} />
     </View>
@@ -279,7 +262,6 @@ function nextLevelLine(progress: ReturnType<typeof levelProgress>) {
 
 const styles = StyleSheet.create({
   header: { paddingHorizontal: size.gutter, paddingTop: space.sm, paddingBottom: space.sm, gap: size.cardGap },
-  headerRow: { flexDirection: 'row', alignItems: 'center', gap: space.lg },
   weather: { alignItems: 'center', minWidth: 76, gap: 2 },
   levelRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   streakChip: {

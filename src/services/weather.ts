@@ -53,6 +53,17 @@ export const conditionIcon: Record<WeatherCondition, string> = {
   frost: 'snow',
 };
 
+/// Colour for the condition's icon. A rain cloud drawn in sunshine-yellow reads as
+/// cheerful weather at a glance, which is the opposite of useful.
+export const conditionTint: Record<WeatherCondition, string> = {
+  clear: '#E9C44C',
+  partlyCloudy: '#E9C44C',
+  cloudy: '#8E9AA0',
+  rain: '#4FA8E8',
+  storm: '#5C6BA8',
+  frost: '#7FC4E8',
+};
+
 /// Warnings worth pushing at the user, per the heat/storm alert idea.
 export function conditionAlert(condition: WeatherCondition): string | null {
   if (condition === 'storm') return 'Storm forecast - stake anything tall and move pots against a wall.';
