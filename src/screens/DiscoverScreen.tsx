@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useState } from 'react';
+import React, { memo, useCallback, useMemo, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Card, Chip, ContentColumn, Pill, SectionHeader } from '../components/ui';
@@ -8,7 +8,7 @@ import { Community } from '../components/Community';
 import { useGarden } from '../state/GardenContext';
 import { Species, harvestableIn, lightLabel, sowableIn, speciesById, lookOf } from '../models/species';
 import { getSpecies, progressOf, stageOf } from '../models/planting';
-import { REGIONS, REGION_ORDER } from '../models/regions';
+import { REGIONS, growsInRegion } from '../models/regions';
 import { DishMatch, dishSpeciesNames, dishTagLabel, dishesForGarden, starterCombos } from '../models/dishes';
 import { color, radius, size, space, type } from '../theme';
 import * as haptics from '../services/haptics';
@@ -42,8 +42,12 @@ export function DiscoverScreen() {
   const [plantingBed, setPlantingBed] = useState(false);
   const month = new Date().getMonth() + 1;
   const region = REGIONS[garden.region];
-  const harvesting = harvestableIn(month);
-  const sowing = sowableIn(month);
+  // Only what is worth growing where this garden is. A British plot has no business
+  // being told to sow managu, and a Nairobi one should not be waiting on a British
+  // spring - the region comes from the phone's own location, not a toggle.
+  const here = useCallback((s: Species) => growsInRegion(s.id, garden.region), [garden.region]);
+  const harvesting = useMemo(() => harvestableIn(month).filter(here), [month, here]);
+  const sowing = useMemo(() => sowableIn(month).filter(here), [month, here]);
   const grown = garden.plantings.map((p) => p.speciesID);
   const dishes = dishesForGarden(grown).slice(0, 5);
 
@@ -92,29 +96,17 @@ export function DiscoverScreen() {
   return (
     <ScrollView style={{ backgroundColor: color.canvas }} contentContainerStyle={styles.scroll}>
       <ContentColumn style={{ gap: size.cardGap }}>
-        <View style={styles.regionRow} accessibilityRole="radiogroup" accessibilityLabel="Region">
-          {REGION_ORDER.map((id) => {
-            const on = garden.region === id;
-            return (
-              <Pressable
-                key={id}
-                onPress={() => { haptics.selection(); garden.setRegion(id); }}
-                accessibilityRole="radio"
-                accessibilityState={{ selected: on }}
-                style={({ pressed }) => [styles.regionItem, on && styles.regionOn, pressed && !on && { backgroundColor: color.surfacePressed }]}
-              >
-                <Ionicons name="location-outline" size={14} color={on ? color.textOnBrand : color.textSecondary} />
-                <Text style={[styles.regionLabel, on && styles.regionLabelOn]}>{REGIONS[id].label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
         <Card>
           <View style={{ gap: space.xs }}>
-            <Text style={type.label}>This month in {region.label}</Text>
+            <Text style={type.label}>This month in {garden.placeLabel}</Text>
             <Text style={type.title} accessibilityRole="header">{MONTH_NAMES[month - 1]}</Text>
             <Text style={type.bodyMuted}>{garden.region === 'uk' ? MONTH_BLURBS[month] : region.note}</Text>
+            {garden.regionIsGuess ? (
+              <Text style={type.caption}>
+                No crop library for {garden.placeLabel} yet, so this is {region.label}'s - the
+                closest one we have written.
+              </Text>
+            ) : null}
           </View>
         </Card>
 
@@ -298,14 +290,6 @@ const CarouselTile = memo(function CarouselTile({ species, onChoose }: {
 
 const styles = StyleSheet.create({
   scroll: { padding: size.gutter, paddingBottom: space.xxxl },
-  regionRow: { flexDirection: 'row', backgroundColor: color.surfaceSunken, borderRadius: radius.sm, padding: 3, gap: 2 },
-  regionItem: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    minHeight: size.tap, borderRadius: radius.xs + 1,
-  },
-  regionOn: { backgroundColor: color.brand },
-  regionLabel: { fontSize: 14, fontWeight: '600', color: color.textSecondary },
-  regionLabelOn: { color: color.textOnBrand },
   carousel: { marginHorizontal: -space.lg, marginTop: space.md },
   carouselContent: { paddingHorizontal: space.lg, gap: space.sm },
   tileWrap: { width: 132, gap: 2 },

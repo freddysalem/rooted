@@ -11,7 +11,8 @@ import { WeatherSnapshot, currentWeather } from '../services/weather';
 import {
   HomeColourId, Level, StreakState, advanceStreak, emptyStreak, levelFor, levelProgress,
 } from '../models/progress';
-import { REGIONS, RegionId } from '../models/regions';
+import { REGIONS, RegionId, nearestRegion, regionForCountry } from '../models/regions';
+import { Place } from '../services/places';
 import * as haptics from '../services/haptics';
 import * as reminders from '../services/reminders';
 import { Container, DEFAULT_CONTAINER, WaterAdvice, waterFor } from '../services/water';
@@ -26,7 +27,8 @@ interface PersistedState {
   /** Every plant ever put in, so pulling one up does not cost you progress. */
   plantsEverGrown?: number;
   homeColour?: HomeColourId;
-  region?: RegionId;
+  /** A place typed into the demo switch. Absent means "use the phone's own location". */
+  demoPlace?: Place | null;
 }
 
 interface GardenValue {
@@ -48,7 +50,7 @@ interface GardenValue {
   wateringAdvice: (planting: Planting) => string;
   totalWaterings: number;
 
-  plant: (species: Species, nickname: string, plot: number, container?: Container) => void;
+  plant: (species: Species, nickname: string, plot: number, container?: Container, indoors?: boolean) => void;
   setContainer: (container: Container, planting: Planting) => void;
   /** How much water this one wants right now, and why. */
   waterAdvice: (planting: Planting) => WaterAdvice;
@@ -72,8 +74,16 @@ interface GardenValue {
   homeColour: HomeColourId;
   setHomeColour: (colour: HomeColourId) => void;
   /** Which crop library and, when there is no GPS, which sky the app shows. */
+  /** Which crop library applies, worked out from where the garden actually is. */
   region: RegionId;
-  setRegion: (region: RegionId) => void;
+  /** True when the region was a guess because we have no library for that country. */
+  regionIsGuess: boolean;
+  /** Where the weather is being read: the phone's position, or the demo override. */
+  placeLabel: string;
+  usingDeviceLocation: boolean;
+  /** The demo switch. Null puts it back on the phone's own location. */
+  demoPlace: Place | null;
+  setDemoPlace: (place: Place | null) => void;
 }
 
 const GardenContext = createContext<GardenValue | null>(null);
@@ -119,9 +129,13 @@ export function GardenProvider({ children }: { children: React.ReactNode }) {
   const [streak, setStreak] = useState<StreakState>(emptyStreak);
   const [plantsEverGrown, setPlantsEverGrown] = useState(0);
   const [homeColour, setHomeColour] = useState<HomeColourId>('red');
-  const [region, setRegion] = useState<RegionId>('uk');
+  const [demoPlace, setDemoPlaceState] = useState<Place | null>(null);
   const [weatherIsLive, setWeatherIsLive] = useState(false);
   const coords = useRef<{ latitude: number; longitude: number } | null>(null);
+  // The country the phone is standing in, once it has been asked. Drives the crop
+  // library; null until a reverse geocode succeeds.
+  const [deviceCountry, setDeviceCountry] = useState<string | null>(null);
+  const [usingDeviceLocation, setUsingDeviceLocation] = useState(false);
   const [justLevelled, setJustLevelled] = useState<Level | null>(null);
   const knownLevel = useRef(1);
 
@@ -144,7 +158,7 @@ export function GardenProvider({ children }: { children: React.ReactNode }) {
           // Gardens saved before levels existed still deserve credit for what is planted.
           setPlantsEverGrown(parsed.plantsEverGrown ?? (parsed.plantings ?? []).length);
           setHomeColour(parsed.homeColour ?? 'red');
-          setRegion(parsed.region ?? 'uk');
+          setDemoPlaceState(parsed.demoPlace ?? null);
           knownLevel.current = levelFor(
             (parsed.streak ?? emptyStreak).days,
             parsed.plantsEverGrown ?? (parsed.plantings ?? []).length
@@ -159,28 +173,68 @@ export function GardenProvider({ children }: { children: React.ReactNode }) {
 
   // Real weather needs a position. Only a permission that has already been granted is
   // used here - asking is the Sun spot screen's job, once it has explained itself.
-  // Without a position the chosen region's demo location stands in, so flipping the
-  // region on stage changes the sky as well as the crops.
+  //
+  // The demo switch wins when it is set, so the app can be stood in Nairobi on a stage
+  // in Bristol. Otherwise it is the phone's own position, and only if neither is
+  // available does Bristol stand in - and the tile says so.
   const refreshWeather = useCallback(() => {
     (async () => {
-      if (!coords.current) {
+      if (!demoPlace && !coords.current) {
         try {
           const { status } = await Location.getForegroundPermissionsAsync();
           if (status === 'granted') {
             const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
             coords.current = { latitude: position.coords.latitude, longitude: position.coords.longitude };
+            // The country decides which crop library to show, so it is worth one call.
+            try {
+              const [spot] = await Location.reverseGeocodeAsync(coords.current);
+              if (spot?.isoCountryCode) setDeviceCountry(spot.isoCountryCode);
+            } catch {
+              // Not supported on web, and never worth failing the forecast over.
+            }
           }
         } catch {
-          // No position: fall through to the region's stand-in.
+          // No position: fall through to the stand-in below.
         }
       }
-      const place = coords.current ?? REGIONS[region].demoLocation;
-      const placeName = coords.current ? 'Your garden' : REGIONS[region].demoLocation.name;
+
+      const onDevice = !demoPlace && coords.current !== null;
+      setUsingDeviceLocation(onDevice);
+
+      const place = demoPlace ?? coords.current ?? REGIONS.uk.demoLocation;
+      const placeName = demoPlace
+        ? demoPlace.name
+        : coords.current
+          ? 'Your garden'
+          : REGIONS.uk.demoLocation.name;
       const snapshot = await currentWeather({ ...place, placeName });
       setWeather(snapshot);
-      setWeatherIsLive(snapshot.placeName === placeName && !snapshot.simulated);
+      setWeatherIsLive(!snapshot.simulated);
     })().catch(() => {});
-  }, [region]);
+  }, [demoPlace]);
+
+  /// The demo switch. Setting a place drops any cached device position so the next
+  /// refresh cannot quietly fall back to it.
+  const setDemoPlace = useCallback((place: Place | null) => {
+    setDemoPlaceState(place);
+    if (place) coords.current = null;
+  }, []);
+
+  // Which crop library applies. A country we have written a list for wins; otherwise we
+  // fall back to the nearest one and admit that it is a guess.
+  const { region, regionIsGuess } = useMemo(() => {
+    const country = demoPlace?.countryCode ?? deviceCountry ?? undefined;
+    const named = regionForCountry(country);
+    if (named) return { region: named, regionIsGuess: false };
+    const here = demoPlace ?? coords.current ?? REGIONS.uk.demoLocation;
+    return {
+      region: nearestRegion(here.latitude, here.longitude),
+      // With no country at all we are simply defaulting, not guessing at a foreign one.
+      regionIsGuess: Boolean(country),
+    };
+  }, [demoPlace, deviceCountry, weather]);
+
+  const placeLabel = demoPlace?.label ?? weather?.placeName ?? REGIONS.uk.demoLocation.name;
 
   useEffect(() => {
     if (!ready) return;
@@ -212,10 +266,10 @@ export function GardenProvider({ children }: { children: React.ReactNode }) {
       streak,
       plantsEverGrown,
       homeColour,
-      region,
+      demoPlace,
     };
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(payload)).catch(() => {});
-  }, [plantings, hasSurveyedSun, ready, streak, plantsEverGrown, homeColour, region]);
+  }, [plantings, hasSurveyedSun, ready, streak, plantsEverGrown, homeColour, demoPlace]);
 
   const plantingInPlot = useCallback(
     (plot: number) => plantings.find((p) => p.plot === plot),
@@ -234,8 +288,11 @@ export function GardenProvider({ children }: { children: React.ReactNode }) {
     (planting: Planting) => {
       let interval = getSpecies(planting).waterEveryDays;
       if (weather) {
-        if (weather.rainfallLast24h >= 4) interval += 2;
-        else if (weather.rainfallLast24h >= 1) interval += 1;
+        // Only the sky's own plants get credit for the rain; see water.ts.
+        if (!planting.indoors) {
+          if (weather.rainfallLast24h >= 4) interval += 2;
+          else if (weather.rainfallLast24h >= 1) interval += 1;
+        }
         if (weather.highC >= 26) interval -= 1;
       }
       return Math.max(interval, 1);
@@ -303,7 +360,7 @@ export function GardenProvider({ children }: { children: React.ReactNode }) {
     }
   }, [ready, level]);
 
-  const plant = useCallback((species: Species, nickname: string, plot: number, container?: Container) => {
+  const plant = useCallback((species: Species, nickname: string, plot: number, container?: Container, indoors = false) => {
     setPlantings((current) => {
       if (current.some((p) => p.plot === plot)) return current;
       const trimmed = nickname.trim();
@@ -320,6 +377,7 @@ export function GardenProvider({ children }: { children: React.ReactNode }) {
           heights: [],
           notes: '',
           container: container ?? DEFAULT_CONTAINER,
+          indoors,
         },
       ];
     });
@@ -411,7 +469,7 @@ export function GardenProvider({ children }: { children: React.ReactNode }) {
       streak, plantsEverGrown, level, progress,
       justLevelled, dismissLevel,
       homeColour, setHomeColour,
-      region, setRegion,
+      region, regionIsGuess, placeLabel, usingDeviceLocation, demoPlace, setDemoPlace,
     }),
     [
       ready, plantings, weather, weatherIsLive, refreshWeather, justEarned, dismissBadge,
@@ -421,7 +479,8 @@ export function GardenProvider({ children }: { children: React.ReactNode }) {
       setContainer, waterAdvice, remindersOn, enableReminders,
       hasEarned, earnedCount,
       streak, plantsEverGrown, level, progress,
-      justLevelled, dismissLevel, homeColour, region,
+      justLevelled, dismissLevel, homeColour,
+      region, regionIsGuess, placeLabel, usingDeviceLocation, demoPlace, setDemoPlace,
     ]
   );
 

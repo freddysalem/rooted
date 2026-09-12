@@ -6,8 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Card, ContentColumn, EmptyState, Input, Pill, SectionHeader, SheetBar } from '../components/ui';
 import { PlantSprite } from '../components/PlantSprite';
-import { GrowthStrip } from '../components/GrowthStrip';
-import { TraitChips } from '../components/TraitChips';
+import { PlantChoice, PlantChoiceCard } from '../components/PlantChoiceCard';
 import { useGarden } from '../state/GardenContext';
 import {
   CATEGORY_ORDER, SPECIES, Species, categoryLabel, difficultyLabel, lightLabel, lookOf } from '../models/species';
@@ -45,9 +44,9 @@ export function AddPlantModal({ plot, onClose, initialSpecies = null }: {
   // Categories start shut. Twelve open sections is a very long scroll to reach Roots,
   // and the counts on each header are enough to choose from without opening anything.
   const [openCategories, setOpenCategories] = useState<Set<string>>(() => new Set());
-  // Asked once, here, because it is what decides how much water the reminders tell you
-  // to give it - and nobody wants to be asked that on a notification.
-  const [containerId, setContainerId] = useState('bed');
+  // Asked once, here, because together they decide how much water the reminders tell
+  // you to give it - and nobody wants to be asked that on a notification.
+  const [choice, setChoice] = useState<PlantChoice>({ containerId: 'bed', indoors: false });
   const reduceMotion = useReduceMotion();
   const open = plot !== null;
 
@@ -116,8 +115,8 @@ export function AddPlantModal({ plot, onClose, initialSpecies = null }: {
 
   const confirm = () => {
     if (!selected || plot === null) return;
-    const chosen = CONTAINERS.find((c) => c.id === containerId) ?? CONTAINERS[5];
-    garden.plant(selected, nickname, plot, { kind: chosen.kind, litres: chosen.litres });
+    const chosen = CONTAINERS.find((c) => c.id === choice.containerId) ?? CONTAINERS[5];
+    garden.plant(selected, nickname, plot, { kind: chosen.kind, litres: chosen.litres }, choice.indoors);
     setPlanted(selected);
     setTimeout(close, reduceMotion ? 600 : 1300);
   };
@@ -160,76 +159,14 @@ export function AddPlantModal({ plot, onClose, initialSpecies = null }: {
 
                   {pinned ? (
                     <Card>
-                      <View style={styles.pickCard}>
-                        <View style={styles.pickHead}>
-                          <View style={styles.pickSprite}>
-                            <PlantSprite
-                              look={lookOf(pinned)}
-                              progress={0.9}
-                              seed={pinned.id.length}
-                              height={74}
-                            />
-                            <View style={styles.pickSpriteSoil} />
-                          </View>
-                          <View style={{ flex: 1, gap: space.xs }}>
-                            <Text style={styles.pickTitle}>{pinned.name}</Text>
-                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                              {inSeason(pinned) ? <Pill text="In season" tint="brand" /> : null}
-                              <Pill text={lightLabel[pinned.light]} icon="sunny" tint="sun" />
-                              <Pill text={difficultyLabel(pinned.difficulty)} icon="speedometer" tint="soil" />
-                            </View>
-                          </View>
-                        </View>
-
-                        {/* The point of the screen: what this plant will actually do. */}
-                        <GrowthStrip species={pinned} />
-
-                        <Text style={type.body}>{pinned.tip}</Text>
-                        <TraitChips traits={pinned.traits} />
-
-                        <View style={{ gap: space.sm }}>
-                          <Text style={type.label}>Where will it grow?</Text>
-                          <Text style={type.caption}>
-                            How much soil the roots get is what decides how much water it wants.
-                          </Text>
-                          <View style={styles.containerRow}>
-                            {CONTAINERS.map((option) => {
-                              const on = containerId === option.id;
-                              return (
-                                <Pressable
-                                  key={option.id}
-                                  onPress={() => { haptics.selection(); setContainerId(option.id); }}
-                                  accessibilityRole="radio"
-                                  accessibilityState={{ selected: on }}
-                                  accessibilityLabel={`${option.label}, ${option.detail}`}
-                                  style={({ pressed }) => [
-                                    styles.containerChip,
-                                    on && styles.containerChipOn,
-                                    pressed && !on && { backgroundColor: color.surfacePressed },
-                                  ]}
-                                >
-                                  <Text style={[styles.containerLabel, on && { color: color.textOnBrand }]}>
-                                    {option.label}
-                                  </Text>
-                                  <Text style={[styles.containerDetail, on && { color: color.brandPale }]}>
-                                    {option.detail}
-                                  </Text>
-                                </Pressable>
-                              );
-                            })}
-                          </View>
-                        </View>
-
-                        <Input
-                          label="Name it (optional)"
-                          value={nickname}
-                          onChangeText={setNickname}
-                          placeholder={pinned.name}
-                          maxLength={24}
-                          autoCapitalize="words"
-                          returnKeyType="done"
-                        />
-                      </View>
+                      <PlantChoiceCard
+                        species={pinned}
+                        inSeason={inSeason(pinned)}
+                        nickname={nickname}
+                        onNickname={setNickname}
+                        choice={choice}
+                        onChoice={setChoice}
+                      />
                     </Card>
                   ) : null}
 
@@ -289,6 +226,8 @@ export function AddPlantModal({ plot, onClose, initialSpecies = null }: {
                                 nickname={isSelected ? nickname : ''}
                                 onNickname={setNickname}
                                 onPress={choose}
+                                choice={choice}
+                                onChoice={setChoice}
                               />
                             );
                           })}
@@ -318,13 +257,17 @@ const Separator = () => <View style={{ height: size.cardGap }} />;
 ///
 /// Memoised, and handed the species back through `onPress` rather than a closure, so
 /// that typing a nickname re-renders the one open row instead of the whole catalogue.
-const SpeciesRow = memo(function SpeciesRow({ species, inSeason, isSelected, nickname, onNickname, onPress }: {
+const SpeciesRow = memo(function SpeciesRow({
+  species, inSeason, isSelected, nickname, onNickname, onPress, choice, onChoice,
+}: {
   species: Species;
   inSeason: boolean;
   isSelected: boolean;
   nickname: string;
   onNickname: (text: string) => void;
   onPress: (species: Species) => void;
+  choice: PlantChoice;
+  onChoice: (choice: PlantChoice) => void;
 }) {
   const press = useCallback(() => onPress(species), [onPress, species]);
   return (
@@ -357,23 +300,15 @@ const SpeciesRow = memo(function SpeciesRow({ species, inSeason, isSelected, nic
 
       {isSelected ? (
         <View style={styles.expanded}>
-          <Input
-            label="Name it (optional)"
-            value={nickname}
-            onChangeText={onNickname}
-            placeholder={species.name}
-            maxLength={24}
-            autoCapitalize="words"
-            returnKeyType="done"
+          <PlantChoiceCard
+            species={species}
+            inSeason={inSeason}
+            nickname={nickname}
+            onNickname={onNickname}
+            choice={choice}
+            onChoice={onChoice}
+            showHead={false}
           />
-          <Text style={type.caption}>Plants you have named are plants you remember to water.</Text>
-          <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
-            <Pill text={lightLabel[species.light]} icon="sunny" tint="sun" />
-            <Pill text={`${species.daysToHarvest} days to harvest`} icon="calendar" tint="neutral" />
-            <Pill text={difficultyLabel(species.difficulty)} icon="speedometer" tint="soil" />
-          </View>
-          <Text style={type.body}>{species.tip}</Text>
-          <TraitChips traits={species.traits} />
         </View>
       ) : null}
     </View>

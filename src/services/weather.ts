@@ -1,5 +1,16 @@
 export type WeatherCondition = 'clear' | 'partlyCloudy' | 'cloudy' | 'rain' | 'storm' | 'frost';
 
+/** One day of the outlook. Today is always index 0. */
+export interface ForecastDay {
+  /** ISO date, as the weather service's own local day. */
+  date: string;
+  highC: number;
+  lowC: number;
+  condition: WeatherCondition;
+  /** Millimetres expected across the day. */
+  rainMm: number;
+}
+
 export interface WeatherSnapshot {
   temperatureC: number;
   highC: number;
@@ -9,9 +20,19 @@ export interface WeatherSnapshot {
   rainfallLast24h: number;
   willRainToday: boolean;
   placeName: string;
+  /** Today first, then the next six days. Empty only if the feed gave nothing. */
+  days: ForecastDay[];
+  /** Where the numbers came from, shown under the tile. */
+  source: string;
   /** Set when this came from the stand-in model rather than a live feed. */
   simulated?: boolean;
 }
+
+/// Named once, so the credit on the weather tile and the credit in the code cannot drift
+/// apart. Open-Meteo asks for attribution and is free for non-commercial use.
+export const LIVE_SOURCE = 'Open-Meteo';
+export const SIMULATED_SOURCE = 'Simulated';
+export const SOURCE_URL = 'https://open-meteo.com';
 
 export const conditionLabel: Record<WeatherCondition, string> = {
   clear: 'Clear',
@@ -73,6 +94,33 @@ export async function simulatedWeather(placeName = 'Your garden'): Promise<Weath
   else if (wetness > 0.25) condition = 'partlyCloudy';
   else condition = 'clear';
 
+  // A week of the same model, so the forecast strip is never empty and never pretends
+  // to be a real outlook.
+  const days: ForecastDay[] = Array.from({ length: 7 }, (_, i) => {
+    const day = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
+    const doy = dayOfYear + i;
+    const season = -Math.cos((doy / 365) * 2 * Math.PI);
+    const j = pseudoRandom(doy);
+    const dayHigh = 11.5 + season * 8 + (j - 0.5) * 6;
+    const dayLow = dayHigh - (4 + j * 4);
+    const wet = j * (day.getMonth() + 1 <= 3 || day.getMonth() + 1 >= 10 ? 1.5 : 0.85);
+    const rain = wet > 0.62 ? (wet - 0.62) * 22 : 0;
+    let dayCondition: WeatherCondition;
+    if (dayLow <= 0.5) dayCondition = 'frost';
+    else if (wet > 0.9) dayCondition = 'storm';
+    else if (rain > 0) dayCondition = 'rain';
+    else if (wet > 0.45) dayCondition = 'cloudy';
+    else if (wet > 0.25) dayCondition = 'partlyCloudy';
+    else dayCondition = 'clear';
+    return {
+      date: day.toISOString().slice(0, 10),
+      highC: dayHigh,
+      lowC: dayLow,
+      condition: dayCondition,
+      rainMm: rain,
+    };
+  });
+
   return {
     temperatureC,
     highC,
@@ -81,6 +129,8 @@ export async function simulatedWeather(placeName = 'Your garden'): Promise<Weath
     rainfallLast24h,
     willRainToday: rainfallLast24h > 0.5,
     placeName,
+    days,
+    source: SIMULATED_SOURCE,
     simulated: true,
   };
 }
@@ -117,7 +167,7 @@ export async function currentWeather(opts: {
       `?latitude=${latitude.toFixed(3)}&longitude=${longitude.toFixed(3)}` +
       '&current=temperature_2m,precipitation,weather_code,is_day' +
       '&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,weather_code' +
-      '&past_days=1&forecast_days=2&timezone=auto';
+      '&past_days=1&forecast_days=7&timezone=auto';
     const response = await fetch(url, { signal: controller.signal });
     if (!response.ok) throw new Error(`open-meteo ${response.status}`);
     const data = await response.json();
@@ -126,6 +176,20 @@ export async function currentWeather(opts: {
     const lowC = Number(data.daily.temperature_2m_min[1]);
     const rainfallLast24h = Number(data.daily.precipitation_sum[0] ?? 0);
     const rainToday = Number(data.daily.precipitation_sum[1] ?? 0);
+    // Index 1 onwards is today and the days after it; the strip wants a week of them.
+    const dates: string[] = data.daily.time ?? [];
+    const days: ForecastDay[] = dates.slice(1, 8).map((date: string, i: number) => {
+      const at = i + 1;
+      const dayLow = Number(data.daily.temperature_2m_min[at]);
+      return {
+        date,
+        highC: Number(data.daily.temperature_2m_max[at]),
+        lowC: dayLow,
+        condition: conditionFromCode(Number(data.daily.weather_code[at]), dayLow),
+        rainMm: Number(data.daily.precipitation_sum[at] ?? 0),
+      };
+    });
+
     return {
       temperatureC: Number(data.current.temperature_2m),
       highC,
@@ -134,6 +198,8 @@ export async function currentWeather(opts: {
       rainfallLast24h,
       willRainToday: rainToday > 0.5,
       placeName,
+      days,
+      source: LIVE_SOURCE,
     };
   } catch {
     return simulatedWeather(placeName);

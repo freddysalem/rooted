@@ -80,7 +80,21 @@ export function waterFor(
   let because = '';
   let skip = false;
 
-  if (weather) {
+  // Rain is only a substitute for watering if the rain can land on the plant. A pot on a
+  // windowsill under 10mm of rain is exactly as dry as it was yesterday, and telling
+  // someone to skip it is how an indoor plant dies.
+  const rainReachesIt = !planting.indoors;
+
+  if (weather && !rainReachesIt) {
+    // Indoors is warmer and draughtier than the garden and there is no dew, so a heated
+    // room asks for a little more rather than less.
+    if (weather.highC >= 24) {
+      litres *= 1.1;
+      because = 'Warm indoors, and no rain reaches it.';
+    } else {
+      because = 'Indoors, so the rain outside makes no difference.';
+    }
+  } else if (weather) {
     if (weather.rainfallLast24h >= 6) {
       skip = true;
       because = `${Math.round(weather.rainfallLast24h)}mm of rain overnight - leave it be today.`;

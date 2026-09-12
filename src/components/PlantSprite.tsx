@@ -647,6 +647,23 @@ function PlantBody({ look, progress, H, seed }: {
             <Leaf key={i} x={cx} y={baseY} size={blades * (0.7 + 0.3 * ((i * 3 + seed) % 4) / 3)} angle={(i - 3) * 13} colour={i % 2 ? green : green2} shape="blade" />
           ))}
           {showFlower ? <Bloom x={cx} y={baseY - blades * 0.95} size={H * 0.15 * grow} colour={look.flower!.colour} centre={look.flower!.centre ?? '#E9C44C'} petals={look.flower!.petals} /> : null}
+          {/* Cereals ripen as heads held above the leaves - without these, oats and rice
+              are just grass. */}
+          {showFruit
+            ? Array.from({ length: look.fruit!.count }, (_, i) => {
+                const side = i - (look.fruit!.count - 1) / 2;
+                return (
+                  <Fruit
+                    key={i}
+                    x={cx + side * H * 0.12 * grow}
+                    y={baseY - blades * (0.92 - 0.08 * Math.abs(side))}
+                    size={H * look.fruit!.size * grow * fruitScale}
+                    colour={look.fruit!.colour}
+                    shape={look.fruit!.shape}
+                  />
+                );
+              })
+            : null}
         </G>
       );
     }
@@ -663,6 +680,33 @@ function PlantBody({ look, progress, H, seed }: {
             <Leaf key={`i${i}`} x={cx} y={baseY - r * 0.2} size={r * 0.62} angle={(i - 1.5) * 22} colour={shade(green2, 0.12)} shape={leaf} />
           ))}
           {look.crown ? <Circle cx={cx} cy={baseY - r * 0.5} r={r * 0.26} fill={look.crown.colour} /> : null}
+          {/* Strawberries sit at the skirt of the rosette, not on top of it, so they are
+              drawn low and to the sides where the fruit actually hangs. */}
+          {showFruit
+            ? Array.from({ length: look.fruit!.count }, (_, i) => {
+                const side = i - (look.fruit!.count - 1) / 2;
+                return (
+                  <Fruit
+                    key={i}
+                    x={cx + side * r * 0.52}
+                    y={baseY - r * (0.12 + 0.1 * (i % 2))}
+                    size={H * look.fruit!.size * grow * fruitScale}
+                    colour={look.fruit!.colour}
+                    shape={look.fruit!.shape}
+                  />
+                );
+              })
+            : null}
+          {showFlower ? (
+            <Bloom
+              x={cx}
+              y={baseY - r * 0.86}
+              size={H * look.flower!.size * 0.5 * grow}
+              colour={look.flower!.colour}
+              centre={look.flower!.centre ?? '#E9C44C'}
+              petals={look.flower!.petals}
+            />
+          ) : null}
         </G>
       );
     }
@@ -689,6 +733,22 @@ function PlantBody({ look, progress, H, seed }: {
             </G>
           ))}
           {showFlower ? <Bloom x={cx} y={baseY - shootH * 1.06} size={H * 0.13 * grow} colour={look.flower!.colour} centre={look.flower!.centre ?? '#F2E7C0'} petals={look.flower!.petals} /> : null}
+          {/* Chillies, blueberries and the like carry their crop through the bush. */}
+          {showFruit
+            ? Array.from({ length: look.fruit!.count }, (_, i) => {
+                const side = i - (look.fruit!.count - 1) / 2;
+                return (
+                  <Fruit
+                    key={i}
+                    x={cx + side * H * 0.16 * grow}
+                    y={baseY - shootH * (0.5 + 0.16 * (i % 2))}
+                    size={H * look.fruit!.size * grow * fruitScale}
+                    colour={look.fruit!.colour}
+                    shape={look.fruit!.shape}
+                  />
+                );
+              })
+            : null}
         </G>
       );
     }
@@ -758,6 +818,16 @@ function PlantBody({ look, progress, H, seed }: {
                 />
               ))
             : null}
+          {showFlower ? (
+            <Bloom
+              x={cx + stemW * 1.4}
+              y={baseY - stemH * 0.78}
+              size={H * look.flower!.size * 0.55 * grow}
+              colour={look.flower!.colour}
+              centre={look.flower!.centre ?? '#F2E7C0'}
+              petals={look.flower!.petals}
+            />
+          ) : null}
         </G>
       );
     }
@@ -809,6 +879,16 @@ function PlantBody({ look, progress, H, seed }: {
                       />
                     ))
                   : null}
+                {showFlower && i === 1 ? (
+                  <Bloom
+                    x={tipX}
+                    y={tipY - H * 0.03}
+                    size={H * look.flower!.size * 0.5 * grow}
+                    colour={look.flower!.colour}
+                    centre={look.flower!.centre ?? '#F2E7C0'}
+                    petals={look.flower!.petals}
+                  />
+                ) : null}
               </G>
             );
           })}
@@ -871,6 +951,18 @@ function PlantBody({ look, progress, H, seed }: {
           })}
           {showFruit ? (
             <Fruit x={cx} y={baseY - r * 0.7} size={H * look.fruit!.size * grow * fruitScale} colour={look.fruit!.colour} shape={look.fruit!.shape} />
+          ) : null}
+          {/* Mustard and broccoli rabe are grown to the point of flowering, and the
+              flower is how you recognise them. */}
+          {showFlower ? (
+            <Bloom
+              x={cx}
+              y={baseY - r * 0.92}
+              size={H * look.flower!.size * 0.5 * grow}
+              colour={look.flower!.colour}
+              centre={look.flower!.centre ?? '#E9C44C'}
+              petals={look.flower!.petals}
+            />
           ) : null}
         </G>
       );

@@ -22,6 +22,9 @@ export interface Planting {
   notes: string;
   /** How much soil the roots have, which is what decides how much water to give it. */
   container?: Container;
+  /** Under a roof - a windowsill, a greenhouse, a porch. Rain never reaches it, so the
+      forecast cannot be allowed to excuse a watering. Absent means outdoors. */
+  indoors?: boolean;
 }
 
 export type GrowthStage = 'sown' | 'sprouting' | 'growing' | 'established' | 'ready';
