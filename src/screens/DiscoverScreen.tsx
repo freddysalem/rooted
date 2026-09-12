@@ -10,6 +10,7 @@ import { Species, harvestableIn, lightLabel, sowableIn, speciesById, lookOf } fr
 import { getSpecies, progressOf, stageOf } from '../models/planting';
 import { REGIONS, growsInRegion } from '../models/regions';
 import { DishMatch, dishSpeciesNames, dishTagLabel, dishesForGarden, starterCombos } from '../models/dishes';
+import { CORRECTIONS_MADE, REVIEWED_ON, REVIEW_CAVEAT, SOURCES, SPECIES_REVIEWED } from '../models/sources';
 import { color, radius, size, space, type } from '../theme';
 import * as haptics from '../services/haptics';
 import { AddPlantModal } from './AddPlantModal';
@@ -202,6 +203,8 @@ export function DiscoverScreen() {
             ))}
           </View>
         </Card>
+
+        <SourceNote />
       </ContentColumn>
 
       <AddPlantModal
@@ -210,6 +213,54 @@ export function DiscoverScreen() {
         onClose={() => { setPlanting(null); setPlantingBed(false); }}
       />
     </ScrollView>
+  );
+}
+
+/// Where the numbers come from. Last thing on the screen, because nobody opens an app to
+/// read a bibliography - but it is in the app rather than in a slide, because the app is
+/// what gives the advice.
+function SourceNote() {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Card>
+      <View style={{ gap: space.sm }}>
+        <Text style={type.label}>Where this comes from</Text>
+        <Text style={type.body}>
+          All {SPECIES_REVIEWED} plants in the library were reviewed on {REVIEWED_ON} against
+          published horticultural sources, and {CORRECTIONS_MADE} records were corrected.
+        </Text>
+
+        <Pressable
+          onPress={() => { haptics.selection(); setOpen((current) => !current); }}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: open }}
+          accessibilityLabel={open ? 'Hide the sources' : 'Show the sources'}
+          style={({ pressed }) => [styles.sourceToggle, pressed && { backgroundColor: color.surfacePressed }]}
+        >
+          <Text style={[type.captionStrong, { color: color.brandDeep }]}>
+            {open ? 'Hide the sources' : `Show all ${SOURCES.length} sources`}
+          </Text>
+          <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={16} color={color.brandDeep} />
+        </Pressable>
+
+        {open ? (
+          <View style={{ gap: space.sm }}>
+            {SOURCES.map((source) => (
+              <View key={source.url} style={{ gap: 2 }}>
+                <Text style={type.captionStrong}>{source.name}</Text>
+                <Text style={type.caption}>{source.usedFor}</Text>
+                <Text style={[type.caption, { color: color.textTertiary }]}>{source.url}</Text>
+              </View>
+            ))}
+            <Text style={[type.caption, { color: color.textTertiary }]}>{REVIEW_CAVEAT}</Text>
+            <Text style={[type.caption, { color: color.textTertiary }]}>
+              Weather from Open-Meteo (open-meteo.com), free for non-commercial use.
+            </Text>
+          </View>
+        ) : null}
+      </View>
+    </Card>
   );
 }
 
@@ -289,6 +340,15 @@ const CarouselTile = memo(function CarouselTile({ species, onChoose }: {
 });
 
 const styles = StyleSheet.create({
+  sourceToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+    paddingVertical: space.xs,
+    paddingHorizontal: space.sm,
+    borderRadius: radius.sm,
+  },
   scroll: { padding: size.gutter, paddingBottom: space.xxxl },
   carousel: { marginHorizontal: -space.lg, marginTop: space.md },
   carouselContent: { paddingHorizontal: space.lg, gap: space.sm },

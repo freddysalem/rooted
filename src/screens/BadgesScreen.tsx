@@ -1,137 +1,189 @@
 import React from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Card, ContentColumn, ProgressBar } from '../components/ui';
+import { Card, ContentColumn, EmptyState, SectionHeader } from '../components/ui';
+import { PlantSprite } from '../components/PlantSprite';
 import { useGarden } from '../state/GardenContext';
 import { BADGES, Badge } from '../models/badges';
-import { FULL_PLOT_TARGET, getSpecies } from '../models/planting';
+import { Medal, medalLabel, tierBlurb, tierColour } from '../models/medals';
+import { lookOf, speciesById } from '../models/species';
 import { color, radius, size, space, tabular, type } from '../theme';
 
-/// Deliberately private and deliberately not a league table. The comparison that makes
-/// people give up gardening is comparison with other gardeners.
+/// The shelf: what you have actually done, and one line admitting how much is left.
+///
+/// Only earned things are shown. A grid of grey silhouettes for the 150 crops you have
+/// not grown is a list of your failures, and this screen is deliberately private and
+/// deliberately not a league table - the comparison that makes people give up gardening
+/// is comparison with other gardeners, and the runner-up is comparison with an imaginary
+/// completed version of yourself.
 export function BadgesScreen() {
   const garden = useGarden();
 
-  // How far along each locked badge is, where there is a number to show.
-  const families = new Set(garden.plantings.map((p) => getSpecies(p).family)).size;
-  const mostHeights = Math.max(0, ...garden.plantings.map((p) => p.heights.length));
-  const progressFor = (badge: Badge): { now: number; of: number } | null => {
-    switch (badge.id) {
-      case 'five_plants': return { now: garden.plantings.length, of: 5 };
-      case 'full_plot': return { now: garden.plantings.length, of: FULL_PLOT_TARGET };
-      case 'faithful': return { now: garden.totalWaterings, of: 20 };
-      case 'measured': return { now: mostHeights, of: 3 };
-      case 'variety': return { now: families, of: 4 };
-      default: return null;
-    }
-  };
-
-  const rows: Badge[][] = [];
-  for (let i = 0; i < BADGES.length; i += 2) rows.push(BADGES.slice(i, i + 2));
+  const earnedBadges = BADGES.filter((badge) => garden.hasEarned(badge));
+  const badgesLeft = BADGES.length - earnedBadges.length;
+  const golds = garden.medals.filter((medal) => medal.tier === 'gold').length;
+  const nothingYet = earnedBadges.length === 0 && garden.medals.length === 0;
 
   return (
     <ScrollView style={{ backgroundColor: color.canvas }} contentContainerStyle={styles.scroll}>
       <ContentColumn style={{ gap: size.cardGap }}>
         <Card>
           <View style={{ gap: space.sm }}>
-            <Text style={type.label}>Badges</Text>
+            <Text style={type.label}>Your shelf</Text>
             <Text style={[type.display, tabular]} accessibilityRole="header">
-              {garden.earnedCount} of {BADGES.length}
+              {earnedBadges.length + garden.medals.length} earned
             </Text>
-            <ProgressBar fraction={garden.earnedCount / BADGES.length} tone={color.sun} />
             <Text style={type.bodyMuted}>
-              Yours alone. Nobody else can see these, and there is no leaderboard to fall down.
+              {golds > 0
+                ? `${golds} ${golds === 1 ? 'crop' : 'crops'} taken all the way to harvest.`
+                : 'A medal appears for every crop you plant, and climbs as you keep it alive.'}
             </Text>
           </View>
         </Card>
 
-        <View style={{ gap: size.cardGap }}>
-          {rows.map((pair, index) => (
-            <View key={index} style={styles.row}>
-              {pair.map((badge) => (
-                <BadgeTile
-                  key={badge.id}
-                  badge={badge}
-                  earned={garden.hasEarned(badge)}
-                  progress={progressFor(badge)}
-                />
-              ))}
-              {pair.length === 1 ? <View style={{ flex: 1 }} /> : null}
+        {/* The one nod to what is missing: a count, not a checklist. */}
+        <Card padding={space.md}>
+          <View style={styles.leftRow}>
+            <View style={styles.leftIcon}>
+              <Ionicons name="lock-open-outline" size={20} color={color.brandDeep} />
             </View>
-          ))}
-        </View>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={type.bodyStrong}>Still to unlock</Text>
+              <Text style={type.caption}>
+                {badgesLeft} {badgesLeft === 1 ? 'badge' : 'badges'} · {garden.cropsUnmedalled} crops you have not grown yet
+              </Text>
+            </View>
+          </View>
+        </Card>
+
+        {nothingYet ? (
+          <Card>
+            <EmptyState
+              icon="ribbon"
+              title="Nothing on the shelf yet"
+              body="Plant something and its medal appears here the same day. Keep it alive and the medal gets better."
+            />
+          </Card>
+        ) : null}
+
+        {garden.medals.length > 0 ? (
+          <View style={{ gap: space.sm }}>
+            <SectionHeader
+              title="Crop medals"
+              subtitle="Basic when it goes in, gold when you harvest it. Only your best for each crop is shown."
+            />
+            <View style={styles.medalGrid}>
+              {garden.medals.map((medal) => (
+                <CropMedal key={medal.speciesId} medal={medal} />
+              ))}
+            </View>
+          </View>
+        ) : null}
+
+        {earnedBadges.length > 0 ? (
+          <View style={{ gap: space.sm }}>
+            <SectionHeader title="Badges" subtitle="One-off milestones, earned once." />
+            <View style={styles.medalGrid}>
+              {earnedBadges.map((badge) => (
+                <BadgeTile key={badge.id} badge={badge} />
+              ))}
+            </View>
+          </View>
+        ) : null}
       </ContentColumn>
     </ScrollView>
   );
 }
 
-function BadgeTile({ badge, earned, progress }: {
-  badge: Badge;
-  earned: boolean;
-  progress: { now: number; of: number } | null;
-}) {
-  const showProgress = !earned && progress !== null;
+/// One crop's medal. The plant it is for is drawn on the disc, so the shelf reads as a
+/// row of things you grew rather than a row of icons.
+function CropMedal({ medal }: { medal: Medal }) {
+  const species = speciesById(medal.speciesId);
+  const paint = tierColour[medal.tier];
+  const label = medalLabel(medal);
+
   return (
     <View
-      style={[styles.tile, earned ? styles.tileEarned : styles.tileLocked]}
-      accessibilityLabel={`${badge.name}, ${earned ? 'earned' : 'not yet earned'}. ${badge.blurb}${showProgress ? ` ${progress.now} of ${progress.of}.` : ''}`}
+      style={[styles.tile, { borderColor: paint.rim }]}
+      accessibilityLabel={`${species.name}, ${label}. ${tierBlurb[medal.tier]}${medal.tier === 'gold' && medal.count > 1 ? `, grown to harvest ${medal.count} times` : ''}`}
     >
-      <View style={[styles.medal, { backgroundColor: earned ? color.sunTint : color.surfaceSunken }]}>
-        <Ionicons
-          name={badge.icon as keyof typeof Ionicons.glyphMap}
-          size={24}
-          color={earned ? color.sunText : color.textTertiary}
-        />
-        {earned ? (
-          <View style={styles.tick}>
-            <Ionicons name="checkmark" size={11} color="#FFF" />
+      <View style={[styles.disc, { backgroundColor: paint.face, borderColor: paint.rim }]}>
+        <PlantSprite look={lookOf(species)} progress={0.92} seed={species.id.length} height={40} />
+        {medal.tier === 'gold' && medal.count > 1 ? (
+          <View style={[styles.count, { borderColor: paint.face }]}>
+            <Text style={styles.countText}>{medal.count}</Text>
           </View>
         ) : null}
       </View>
-      <Text style={[type.bodyStrong, { textAlign: 'center' }, !earned && { color: color.textSecondary }]}>
-        {badge.name}
-      </Text>
-      <Text style={[type.caption, { textAlign: 'center' }]}>{badge.blurb}</Text>
-      {showProgress ? (
-        <View style={styles.progress}>
-          <ProgressBar fraction={progress.now / progress.of} height={4} tone={color.brand} />
-          <Text style={[type.caption, tabular, { textAlign: 'center' }]}>
-            {Math.min(progress.now, progress.of)} of {progress.of}
-          </Text>
-        </View>
-      ) : null}
+      <Text style={[type.bodyStrong, styles.centre]} numberOfLines={1}>{species.name}</Text>
+      <Text style={[styles.tierText, { color: paint.ink }]}>{label}</Text>
+      <Text style={[type.caption, styles.centre]} numberOfLines={2}>{tierBlurb[medal.tier]}</Text>
+    </View>
+  );
+}
+
+function BadgeTile({ badge }: { badge: Badge }) {
+  return (
+    <View
+      style={[styles.tile, { borderColor: color.sun }]}
+      accessibilityLabel={`${badge.name}, earned. ${badge.blurb}`}
+    >
+      <View style={[styles.disc, { backgroundColor: color.sunTint, borderColor: color.sun }]}>
+        <Ionicons name={badge.icon as keyof typeof Ionicons.glyphMap} size={24} color={color.sunText} />
+      </View>
+      <Text style={[type.bodyStrong, styles.centre]} numberOfLines={1}>{badge.name}</Text>
+      <Text style={[type.caption, styles.centre]}>{badge.blurb}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   scroll: { padding: size.gutter, paddingBottom: space.xxxl },
-  row: { flexDirection: 'row', gap: size.cardGap, alignItems: 'stretch' },
-  tile: {
-    flex: 1,
+  leftRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  leftIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: radius.sm,
+    backgroundColor: color.brandTint,
     alignItems: 'center',
-    gap: space.sm,
+    justifyContent: 'center',
+  },
+  medalGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: size.cardGap },
+  tile: {
+    width: '47.5%',
+    flexGrow: 1,
+    alignItems: 'center',
+    gap: 4,
     paddingVertical: space.lg,
     paddingHorizontal: space.md,
     backgroundColor: color.surface,
     borderRadius: radius.md,
     borderWidth: 1,
   },
-  tileEarned: { borderColor: color.sun },
-  tileLocked: { borderColor: color.line },
-  medal: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
-  tick: {
+  disc: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    marginBottom: space.xs,
+  },
+  count: {
     position: 'absolute',
     right: -2,
     bottom: -2,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: color.brand,
+    minWidth: 22,
+    height: 22,
+    paddingHorizontal: 4,
+    borderRadius: 11,
     borderWidth: 2,
-    borderColor: color.surface,
+    backgroundColor: color.brandDeep,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  progress: { width: '100%', gap: space.xs, marginTop: 'auto' },
+  countText: { fontSize: 12, lineHeight: 15, fontWeight: '800', color: '#FFFFFF' },
+  centre: { textAlign: 'center' },
+  tierText: { fontSize: 12, lineHeight: 15, fontWeight: '800', letterSpacing: 0.3 },
 });

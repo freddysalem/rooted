@@ -4,17 +4,18 @@ import Svg, { Circle, Line, Text as SvgText } from 'react-native-svg';
 import Slider from '@react-native-community/slider';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
-import { Button, Card, Chip, ContentColumn, Pill, SectionHeader } from '../components/ui';
+import { Button, Card, Chip, ContentColumn, Input, Pill, SectionHeader } from '../components/ui';
 import { PlantSprite, seedFromString } from '../components/PlantSprite';
 import { useGarden } from '../state/GardenContext';
 import { SPECIES, Species, lightLabel, lightMinimumHours, lookOf } from '../models/species';
-import { badgeById } from '../models/badges';
 import {
   SunSample, angularDistance, compassLabel, lightNeedForHours, sunArc, sunHoursFromArc, sunPosition,
 } from '../services/sunPath';
+import { aspectLabel } from '../models/survey';
 import { color, radius, size, space, tabular, type } from '../theme';
 import * as haptics from '../services/haptics';
 import { AddPlantModal } from './AddPlantModal';
+import { SurveysModal } from './SurveysModal';
 
 const FALLBACK = { latitude: 51.4545, longitude: -2.5879, name: 'Bristol' };
 
@@ -44,6 +45,10 @@ export function SunSpotScreen({ active = true }: { active?: boolean }) {
   const [now, setNow] = useState(new Date());
   const [saved, setSaved] = useState(false);
   const [planting, setPlanting] = useState<Species | null>(null);
+  const [surveysOpen, setSurveysOpen] = useState(false);
+  // Naming happens at the moment of saving, while you are still standing in the spot.
+  const [naming, setNaming] = useState(false);
+  const [spotName, setSpotName] = useState('');
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 30000);
@@ -145,13 +150,20 @@ export function SunSpotScreen({ active = true }: { active?: boolean }) {
     : obstruction < 28 ? 'Hemmed in by fences'
     : 'Overshadowed by buildings';
 
-  const sunSeeker = badgeById('sun_seeker');
-  const alreadySurveyed = sunSeeker ? garden.hasEarned(sunSeeker) : false;
-
   const saveSurvey = () => {
-    garden.markSunSurveyed();
-    haptics.success();
+    const fallbackName = `${aspectLabel(bearing)}-facing spot`;
+    garden.saveSurvey({
+      name: spotName.trim() || fallbackName,
+      bearing,
+      obstruction,
+      sunHours: hours,
+      latitude,
+      longitude,
+      placeName: coords ? 'Your garden' : FALLBACK.name,
+    });
     setSaved(true);
+    setNaming(false);
+    setSpotName('');
   };
 
   const locationNote = (() => {
@@ -168,6 +180,24 @@ export function SunSpotScreen({ active = true }: { active?: boolean }) {
           <Text style={type.title} accessibilityRole="header">Sun spot</Text>
           <Text style={type.bodyMuted}>Stand where you'd plant, point the phone at it, and see how much sun it gets.</Text>
         </View>
+
+        <Pressable
+          onPress={() => { haptics.selection(); setSurveysOpen(true); }}
+          accessibilityRole="button"
+          accessibilityLabel={`View your saved spots. ${garden.surveys.length} saved`}
+          style={({ pressed }) => [styles.surveysTile, pressed && { backgroundColor: color.surfacePressed }]}
+        >
+          <Ionicons name="bookmarks-outline" size={20} color={color.brandDeep} />
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={type.bodyStrong}>View surveys</Text>
+            <Text style={type.caption}>
+              {garden.surveys.length === 0
+                ? 'Nothing saved yet - measure a spot and it will be kept here.'
+                : `${garden.surveys.length} ${garden.surveys.length === 1 ? 'spot' : 'spots'} saved`}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={color.textTertiary} />
+        </Pressable>
 
         <Card>
           <View style={{ gap: space.md, alignItems: 'center' }}>
@@ -282,16 +312,34 @@ export function SunSpotScreen({ active = true }: { active?: boolean }) {
             ))}
           </ScrollView>
           <View style={{ marginTop: space.md, gap: space.sm }}>
-            <Button
-              label={saved || alreadySurveyed ? 'Survey saved' : 'Save this survey'}
-              icon={saved || alreadySurveyed ? 'checkmark' : 'bookmark-outline'}
-              tone={saved || alreadySurveyed ? 'quiet' : 'solid'}
-              onPress={saveSurvey}
-              disabled={saved || alreadySurveyed}
-            />
+            {naming ? (
+              <>
+                <Input
+                  label="Name this spot"
+                  value={spotName}
+                  onChangeText={setSpotName}
+                  placeholder={`${aspectLabel(bearing)}-facing spot`}
+                  maxLength={28}
+                  autoFocus
+                  returnKeyType="done"
+                  onSubmitEditing={saveSurvey}
+                />
+                <Text style={type.caption}>
+                  Something you will recognise later - "by the back fence", "the balcony end".
+                </Text>
+                <Button label="Save this spot" icon="bookmark" onPress={saveSurvey} />
+              </>
+            ) : (
+              <Button
+                label={saved ? 'Spot saved' : 'Save this spot'}
+                icon={saved ? 'checkmark' : 'bookmark-outline'}
+                tone={saved ? 'quiet' : 'solid'}
+                onPress={() => { haptics.selection(); setSaved(false); setNaming(true); }}
+              />
+            )}
             {saved ? (
               <Text style={[type.caption, { textAlign: 'center', color: color.brandDeep }]}>
-                Sun Seeker badge earned. Have a look under Badges.
+                Saved. Measure another spot and you can compare them.
               </Text>
             ) : null}
           </View>
@@ -319,6 +367,7 @@ export function SunSpotScreen({ active = true }: { active?: boolean }) {
         </View>
       </ContentColumn>
 
+      <SurveysModal open={surveysOpen} onClose={() => setSurveysOpen(false)} />
       <AddPlantModal
         plot={planting ? garden.firstEmptyPlot : null}
         initialSpecies={planting}
@@ -408,6 +457,17 @@ function SunDial({ arc, bearing, current, obstruction }: {
 }
 
 const styles = StyleSheet.create({
+  surveysTile: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    padding: space.md,
+    borderRadius: radius.md,
+    backgroundColor: color.surface,
+    borderWidth: 1,
+    borderColor: color.line,
+    minHeight: size.tap,
+  },
   scroll: { padding: size.gutter, paddingBottom: space.xxxl },
   intro: { gap: space.xs, paddingHorizontal: space.xs, paddingBottom: space.xs },
   readoutRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, width: '100%' },

@@ -5,13 +5,15 @@ import * as Location from 'expo-location';
 import {
   Planting, FULL_PLOT_TARGET, daysBetween, getSpecies, progressOf, stageOf,
 } from '../models/planting';
-import { Species } from '../models/species';
+import { SPECIES, Species } from '../models/species';
 import { Badge, BADGES, badgeById } from '../models/badges';
 import { WeatherSnapshot, currentWeather } from '../services/weather';
 import {
   HomeColourId, Level, StreakState, advanceStreak, emptyStreak, levelFor, levelProgress,
 } from '../models/progress';
-import { REGIONS, RegionId, nearestRegion, regionForCountry } from '../models/regions';
+import { REGIONS, RegionId, growsInRegion, nearestRegion, regionForCountry } from '../models/regions';
+import { SunSurvey } from '../models/survey';
+import { Medal, MedalBook, medalsFrom, updateMedals } from '../models/medals';
 import { Place } from '../services/places';
 import * as haptics from '../services/haptics';
 import * as reminders from '../services/reminders';
@@ -23,6 +25,8 @@ interface PersistedState {
   plantings: Planting[];
   earnedBadgeIDs: string[];
   hasSurveyedSun: boolean;
+  surveys?: SunSurvey[];
+  medals?: MedalBook;
   streak?: StreakState;
   /** Every plant ever put in, so pulling one up does not cost you progress. */
   plantsEverGrown?: number;
@@ -61,9 +65,18 @@ interface GardenValue {
   updateNotes: (notes: string, planting: Planting) => void;
   removePlanting: (planting: Planting) => void;
   markSunSurveyed: () => void;
+  /** Every spot the grower has measured, newest first. */
+  surveys: SunSurvey[];
+  saveSurvey: (survey: Omit<SunSurvey, 'id' | 'takenOn'>) => SunSurvey;
+  renameSurvey: (id: string, name: string) => void;
+  removeSurvey: (id: string) => void;
 
   hasEarned: (badge: Badge) => boolean;
   earnedCount: number;
+  /** One per crop ever grown, best tier only. */
+  medals: Medal[];
+  /** Crops in this region with no medal yet. */
+  cropsUnmedalled: number;
 
   streak: StreakState;
   plantsEverGrown: number;
@@ -124,6 +137,8 @@ export function GardenProvider({ children }: { children: React.ReactNode }) {
   const [plantings, setPlantings] = useState<Planting[]>([]);
   const [earnedBadgeIDs, setEarnedBadgeIDs] = useState<Set<string>>(new Set());
   const [hasSurveyedSun, setHasSurveyedSun] = useState(false);
+  const [surveys, setSurveys] = useState<SunSurvey[]>([]);
+  const [medalBook, setMedalBook] = useState<MedalBook>({});
   const [weather, setWeather] = useState<WeatherSnapshot | null>(null);
   const [justEarned, setJustEarned] = useState<Badge | null>(null);
   const [streak, setStreak] = useState<StreakState>(emptyStreak);
@@ -154,6 +169,8 @@ export function GardenProvider({ children }: { children: React.ReactNode }) {
           setEarnedBadgeIDs(restored);
           knownBadges.current = new Set(restored);
           setHasSurveyedSun(parsed.hasSurveyedSun ?? false);
+          setSurveys(parsed.surveys ?? []);
+          setMedalBook(parsed.medals ?? {});
           setStreak(parsed.streak ?? emptyStreak);
           // Gardens saved before levels existed still deserve credit for what is planted.
           setPlantsEverGrown(parsed.plantsEverGrown ?? (parsed.plantings ?? []).length);
@@ -263,13 +280,15 @@ export function GardenProvider({ children }: { children: React.ReactNode }) {
       plantings,
       earnedBadgeIDs: [...earned],
       hasSurveyedSun,
+      surveys,
+      medals: medalBook,
       streak,
       plantsEverGrown,
       homeColour,
       demoPlace,
     };
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(payload)).catch(() => {});
-  }, [plantings, hasSurveyedSun, ready, streak, plantsEverGrown, homeColour, demoPlace]);
+  }, [plantings, hasSurveyedSun, surveys, medalBook, ready, streak, plantsEverGrown, homeColour, demoPlace]);
 
   const plantingInPlot = useCallback(
     (plot: number) => plantings.find((p) => p.plot === plot),
@@ -422,6 +441,25 @@ export function GardenProvider({ children }: { children: React.ReactNode }) {
 
   const markSunSurveyed = useCallback(() => setHasSurveyedSun(true), []);
 
+  /// Saving a survey is what earns the badge now - the boolean is kept so an old
+  /// install that already had it does not lose it.
+  const saveSurvey = useCallback((survey: Omit<SunSurvey, 'id' | 'takenOn'>) => {
+    const saved: SunSurvey = { ...survey, id: uid(), takenOn: new Date().toISOString() };
+    setSurveys((current) => [saved, ...current]);
+    setHasSurveyedSun(true);
+    haptics.success();
+    return saved;
+  }, []);
+
+  const renameSurvey = useCallback((id: string, name: string) => {
+    const trimmed = name.trim();
+    setSurveys((current) => current.map((s) => (s.id === id ? { ...s, name: trimmed || s.name } : s)));
+  }, []);
+
+  const removeSurvey = useCallback((id: string) => {
+    setSurveys((current) => current.filter((s) => s.id !== id));
+  }, []);
+
   const waterAdvice = useCallback(
     (planting: Planting) => waterFor(planting, getSpecies(planting), weather),
     [weather]
@@ -445,6 +483,19 @@ export function GardenProvider({ children }: { children: React.ReactNode }) {
     reminders.rescheduleAll(plantings, weather, wateringInterval);
   }, [ready, remindersOn, plantings, weather, wateringInterval]);
 
+  // Medals follow the plot: every render of a changed plot folds in whatever the plants
+  // have achieved since, and nothing is ever taken away.
+  useEffect(() => {
+    if (!ready) return;
+    setMedalBook((current) => updateMedals(current, plantings));
+  }, [ready, plantings]);
+
+  const medals = useMemo(() => medalsFrom(medalBook), [medalBook]);
+  const cropsUnmedalled = useMemo(
+    () => SPECIES.filter((s) => growsInRegion(s.id, region) && !medalBook[s.id]).length,
+    [medalBook, region]
+  );
+
   const hasEarned = useCallback((badge: Badge) => earnedBadgeIDs.has(badge.id), [earnedBadgeIDs]);
   const earnedCount = useMemo(
     () => BADGES.filter((b) => earnedBadgeIDs.has(b.id)).length,
@@ -464,8 +515,9 @@ export function GardenProvider({ children }: { children: React.ReactNode }) {
       plantingInPlot, firstEmptyPlot, thirsty,
       needsWater, wateringInterval, wateringAdvice, totalWaterings,
       plant, water, recordHeight, updateNotes, removePlanting, markSunSurveyed,
+      surveys, saveSurvey, renameSurvey, removeSurvey,
       setContainer, waterAdvice, remindersOn, enableReminders,
-      hasEarned, earnedCount,
+      hasEarned, earnedCount, medals, cropsUnmedalled,
       streak, plantsEverGrown, level, progress,
       justLevelled, dismissLevel,
       homeColour, setHomeColour,
@@ -476,8 +528,9 @@ export function GardenProvider({ children }: { children: React.ReactNode }) {
       plantingInPlot, firstEmptyPlot, thirsty,
       needsWater, wateringInterval, wateringAdvice, totalWaterings,
       plant, water, recordHeight, updateNotes, removePlanting, markSunSurveyed,
+      surveys, saveSurvey, renameSurvey, removeSurvey,
       setContainer, waterAdvice, remindersOn, enableReminders,
-      hasEarned, earnedCount,
+      hasEarned, earnedCount, medals, cropsUnmedalled,
       streak, plantsEverGrown, level, progress,
       justLevelled, dismissLevel, homeColour,
       region, regionIsGuess, placeLabel, usingDeviceLocation, demoPlace, setDemoPlace,
