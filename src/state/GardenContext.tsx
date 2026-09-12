@@ -225,8 +225,11 @@ export function GardenProvider({ children }: { children: React.ReactNode }) {
           ? 'Your garden'
           : REGIONS.uk.demoLocation.name;
       const snapshot = await currentWeather({ ...place, placeName });
-      setWeather(snapshot);
-      setWeatherIsLive(!snapshot.simulated);
+      // A failed refresh must not replace a good reading with the simulation. Yesterday's
+      // real forecast for the right place beats a made-up one for today, and the tile
+      // should only ever admit to simulating when it has never managed a live fetch.
+      setWeather((current) => (snapshot.simulated && current && !current.simulated ? current : snapshot));
+      setWeatherIsLive((live) => (snapshot.simulated ? live : true));
     })().catch(() => {});
   }, [demoPlace]);
 

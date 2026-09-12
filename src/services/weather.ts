@@ -170,8 +170,23 @@ export async function currentWeather(opts: {
   const placeName = opts.placeName ?? 'Your garden';
   if (latitude === undefined || longitude === undefined) return simulatedWeather(placeName);
 
+  // Two attempts with a generous timeout. The old six-second single shot was enough to
+  // make a phone on a slow mobile connection fall back to the simulation and then say so
+  // on the tile, which reads as the app being broken rather than the signal being bad.
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const snapshot = await fetchOnce(latitude, longitude, placeName);
+    if (snapshot) return snapshot;
+  }
+  return simulatedWeather(placeName);
+}
+
+async function fetchOnce(
+  latitude: number,
+  longitude: number,
+  placeName: string
+): Promise<WeatherSnapshot | null> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 6000);
+  const timer = setTimeout(() => controller.abort(), 12000);
   try {
     const url =
       'https://api.open-meteo.com/v1/forecast' +
@@ -213,7 +228,7 @@ export async function currentWeather(opts: {
       source: LIVE_SOURCE,
     };
   } catch {
-    return simulatedWeather(placeName);
+    return null;
   } finally {
     clearTimeout(timer);
   }

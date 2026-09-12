@@ -28,7 +28,9 @@ const STAGES: { at: number; label: string }[] = [
 
 export function MilestoneTrack({ planting, compact = false }: {
   planting: Planting;
-  /** Drops the day numbers, for the tighter beds in the plot. */
+  /** Dots only. For the beds in the plot, where the track sits over the sky above the
+      plant and there is no room for words at all - the full version with the labels and
+      the day numbers is on the plant's own sheet. */
   compact?: boolean;
 }) {
   const species = getSpecies(planting);
@@ -62,6 +64,18 @@ export function MilestoneTrack({ planting, compact = false }: {
     ? 'Ready to pick'
     : `${Math.max(dots[1].day - day, 0)} days to ${dots[1].label.toLowerCase()} · ${remaining} to harvest`;
 
+  if (compact) {
+    return (
+      <View style={styles.track} accessibilityLabel={`Day ${day} of ${total}. ${headline}`}>
+        <Dot filled small />
+        <Segment fill={firstFill} />
+        {dots.length === 3 ? <Dot filled={p >= nextAt} small /> : null}
+        {dots.length === 3 ? <Segment fill={secondFill} /> : null}
+        <Dot filled={p >= 1} hollow={p < 1} small />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.wrap} accessibilityLabel={`Day ${day} of ${total}. ${headline}`}>
       <View style={styles.labels}>
@@ -90,7 +104,7 @@ export function MilestoneTrack({ planting, compact = false }: {
         <Dot filled={p >= 1} hollow={p < 1} />
       </View>
 
-      {compact ? null : (
+      {(
         <View style={styles.labels}>
           {dots.map((dot, i) => (
             <Text
@@ -112,11 +126,16 @@ export function MilestoneTrack({ planting, compact = false }: {
   );
 }
 
-function Dot({ filled, hollow = false }: { filled: boolean; hollow?: boolean }) {
+function Dot({ filled, hollow = false, small = false }: {
+  filled: boolean;
+  hollow?: boolean;
+  small?: boolean;
+}) {
   return (
     <View
       style={[
         styles.dot,
+        small && styles.dotSmall,
         filled && styles.dotFilled,
         hollow && styles.dotHollow,
       ]}
@@ -160,6 +179,7 @@ const styles = StyleSheet.create({
     borderRadius: DOT / 2,
     backgroundColor: color.brandPale,
   },
+  dotSmall: { width: 6, height: 6, borderRadius: 3 },
   dotFilled: { backgroundColor: color.brand },
   dotHollow: {
     backgroundColor: color.surface,

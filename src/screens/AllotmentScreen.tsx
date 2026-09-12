@@ -65,14 +65,20 @@ export function AllotmentScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: color.canvas }}>
-      <ContentColumn style={styles.header}>
+      <View style={styles.header}>
         <WeatherTile
-          greeting={greeting}
           note={thirstyLine}
           weather={garden.weather}
           onOpenLocation={() => setLocationOpen(true)}
         />
+      </View>
 
+      <View style={styles.plotArea}>
+        <PlotGrid
+          plantings={garden.plantings}
+          isThirsty={garden.needsWater}
+          header={
+            <View style={{ gap: size.cardGap }}>
         <Card padding={space.md}>
           <View style={{ gap: space.sm }}>
             <View style={styles.levelRow}>
@@ -173,14 +179,7 @@ export function AllotmentScreen() {
             ))}
           </ScrollView>
         ) : null}
-      </ContentColumn>
 
-      <View style={styles.plotArea}>
-        <PlotGrid
-          plantings={garden.plantings}
-          isThirsty={garden.needsWater}
-          header={
-            <View>
               <HomeStrip
                 tier={garden.level.home}
                 colour={garden.homeColour}
@@ -190,20 +189,11 @@ export function AllotmentScreen() {
                 condition={garden.weather?.condition ?? 'partlyCloudy'}
                 onOpen={() => setMapOpen(true)}
               />
-              {!garden.remindersOn && garden.plantings.length > 0 ? (
-                <Card style={{ marginBottom: space.md }} padding={space.md}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
-                    <Ionicons name="notifications-outline" size={22} color={color.brandDeep} />
-                    <View style={{ flex: 1, gap: 2 }}>
-                      <Text style={type.bodyStrong}>Watering reminders</Text>
-                      <Text style={type.caption}>
-                        A nudge on the day each plant is due, with how much to give it.
-                      </Text>
-                    </View>
-                    <Button label="Turn on" compact onPress={() => garden.enableReminders()} />
-                  </View>
-                </Card>
-              ) : null}
+              {/* The watering-reminder prompt used to sit here. Expo Go cannot reliably
+                  grant notification permission, so the card asked for something it could
+                  not deliver and then would not go away. The scheduling itself is intact
+                  in services/reminders.ts and runs as soon as permission exists in a real
+                  build - it just no longer takes up the home screen promising it. */}
             </View>
           }
           onOpenPlant={openPlant}

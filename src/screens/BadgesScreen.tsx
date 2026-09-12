@@ -150,8 +150,9 @@ const styles = StyleSheet.create({
   },
   medalGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: size.cardGap },
   tile: {
-    width: '47.5%',
-    flexGrow: 1,
+    // Fixed share of the row, never stretched: a lone medal on the last row should sit
+    // in its own column with a gap beside it, not spread to twice the width.
+    width: '48%',
     alignItems: 'center',
     gap: 4,
     paddingVertical: space.lg,

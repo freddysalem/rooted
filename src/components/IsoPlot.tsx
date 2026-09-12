@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated, Easing, LayoutChangeEvent, PanResponder, Pressable, StyleSheet, Text, View,
 } from 'react-native';
@@ -213,11 +213,24 @@ export function IsoPlot({
       PanResponder.create({
         // Taps must reach the plants underneath, so the container only takes over once
         // the finger has actually travelled, or a second finger lands.
+        //
+        // It has to do that on the CAPTURE phase. Most of this plot is covered by plant
+        // sprites and their name pills, and once one of those Pressables has the
+        // responder it keeps it - which is why dragging anywhere near a plant did
+        // nothing at all. Capturing steals it back the moment the finger moves.
         onStartShouldSetPanResponder: () => false,
+        onStartShouldSetPanResponderCapture: () => false,
         onMoveShouldSetPanResponder: (event, g) =>
           event.nativeEvent.touches.length > 1 ||
           Math.abs(g.dx) > DRAG_SLOP ||
           Math.abs(g.dy) > DRAG_SLOP,
+        onMoveShouldSetPanResponderCapture: (event, g) =>
+          event.nativeEvent.touches.length > 1 ||
+          Math.abs(g.dx) > DRAG_SLOP ||
+          Math.abs(g.dy) > DRAG_SLOP,
+        // Nothing above this is allowed to take the gesture back mid-drag.
+        onPanResponderTerminationRequest: () => false,
+        onShouldBlockNativeResponder: () => true,
         onPanResponderGrant: (event) => {
           const touches = event.nativeEvent.touches;
           gesture.current = {
@@ -416,43 +429,74 @@ function Ground({ world, plantedCount, addAt, homeTier, homeColour, pets, positi
 }
 
 /// Trees and bushes around the edge, so the farm sits in something rather than floating.
-function Scenery({ worldW, worldH }: { worldW: number; worldH: number }) {
+const Scenery = memo(function Scenery({ worldW, worldH }: { worldW: number; worldH: number }) {
   const items = [];
-  const edges = [
-    { count: 7, at: (t: number, i: number) => ({ x: 40 + t * (worldW - 80), y: 30 + scatter(i) * 34 }) },
-    { count: 7, at: (t: number, i: number) => ({ x: 40 + t * (worldW - 80), y: worldH - 30 - scatter(i) * 34 }) },
-    { count: 5, at: (t: number, i: number) => ({ x: 30 + scatter(i) * 34, y: 60 + t * (worldH - 120) }) },
-    { count: 5, at: (t: number, i: number) => ({ x: worldW - 30 - scatter(i) * 34, y: 60 + t * (worldH - 120) }) },
-  ];
 
+  // A wood, not a handful of shrubs: three staggered ranks around the whole edge, drawn
+  // back to front so the far rank sits behind the near one. It is what makes the plot
+  // feel like a clearing rather than a diamond floating in green.
+  const RANKS = 3;
+  const DEPTH = 34;
   let n = 0;
-  for (const edge of edges) {
-    for (let i = 0; i < edge.count; i++) {
+
+  for (let rank = RANKS - 1; rank >= 0; rank -= 1) {
+    const inset = 14 + rank * DEPTH;
+    const along = Math.max(6, Math.round((worldW - inset * 2) / 62));
+    const down = Math.max(5, Math.round((worldH - inset * 2) / 62));
+    const spots: { x: number; y: number }[] = [];
+
+    for (let i = 0; i < along; i += 1) {
+      const t = (i + 0.5) / along;
+      // Staggered by rank so the ranks never line up into a fence.
+      const jitter = (scatter(n + i * 7 + rank * 31) - 0.5) * 26;
+      spots.push({ x: inset + t * (worldW - inset * 2) + jitter, y: inset + (scatter(i + rank * 5) - 0.5) * 16 });
+      spots.push({ x: inset + t * (worldW - inset * 2) - jitter, y: worldH - inset + (scatter(i + rank * 9) - 0.5) * 16 });
+    }
+    for (let i = 0; i < down; i += 1) {
+      const t = (i + 0.5) / down;
+      const jitter = (scatter(n + i * 11 + rank * 17) - 0.5) * 26;
+      spots.push({ x: inset + (scatter(i + rank * 3) - 0.5) * 16, y: inset + t * (worldH - inset * 2) + jitter });
+      spots.push({ x: worldW - inset + (scatter(i + rank * 13) - 0.5) * 16, y: inset + t * (worldH - inset * 2) - jitter });
+    }
+
+    // Near ranks are bigger and greener; the far rank hazes back a little.
+    const depthTint = ['#2F6B32', '#377C36', '#3F8F3C'][rank];
+    const highlight = ['#3C8038', '#469441', '#4EA349'][rank];
+    const scale = 1 - rank * 0.16;
+
+    for (const spot of spots.sort((a, b) => a.y - b.y)) {
       n += 1;
-      const { x, y } = edge.at((i + 0.5) / edge.count, n * 3 + 1);
-      const size = 13 + scatter(n * 11 + 3) * 11;
-      const tree = scatter(n * 13 + 9) > 0.5;
+      const size = (15 + scatter(n * 11 + 3) * 12) * scale;
+      const conifer = scatter(n * 13 + 9) > 0.55;
       items.push(
-        <G key={`s${n}`}>
-          <Ellipse cx={x} cy={y + size * 0.55} rx={size * 0.8} ry={size * 0.28} fill="#000" opacity={0.12} />
-          {tree ? (
+        <G key={`s${rank}-${n}`}>
+          <Ellipse cx={spot.x} cy={spot.y + size * 0.55} rx={size * 0.8} ry={size * 0.26} fill="#000" opacity={0.12} />
+          <Rect x={spot.x - 2.5 * scale} y={spot.y - size * 0.1} width={5 * scale} height={size * 0.7} rx={2} fill="#6B4A2B" />
+          {conifer ? (
             <G>
-              <Rect x={x - 2.5} y={y - size * 0.1} width={5} height={size * 0.7} rx={2} fill="#7A5433" />
-              <Circle cx={x} cy={y - size * 0.35} r={size * 0.72} fill="#3F8F3C" />
-              <Circle cx={x - size * 0.3} cy={y - size * 0.15} r={size * 0.5} fill="#4EA349" />
+              <Polygon
+                points={`${spot.x},${spot.y - size * 1.5} ${spot.x + size * 0.62},${spot.y - size * 0.25} ${spot.x - size * 0.62},${spot.y - size * 0.25}`}
+                fill={depthTint}
+              />
+              <Polygon
+                points={`${spot.x},${spot.y - size * 1.05} ${spot.x + size * 0.5},${spot.y + size * 0.05} ${spot.x - size * 0.5},${spot.y + size * 0.05}`}
+                fill={highlight}
+              />
             </G>
           ) : (
             <G>
-              <Ellipse cx={x} cy={y} rx={size * 0.62} ry={size * 0.48} fill="#4EA349" />
-              <Ellipse cx={x - size * 0.22} cy={y - size * 0.12} rx={size * 0.36} ry={size * 0.3} fill="#5CB755" />
+              <Circle cx={spot.x} cy={spot.y - size * 0.45} r={size * 0.74} fill={depthTint} />
+              <Circle cx={spot.x - size * 0.3} cy={spot.y - size * 0.62} r={size * 0.5} fill={highlight} />
+              <Circle cx={spot.x + size * 0.34} cy={spot.y - size * 0.3} r={size * 0.42} fill={highlight} />
             </G>
           )}
         </G>
       );
     }
   }
+
   return <G>{items}</G>;
-}
+});
 
 function PlantOnPlot({ planting, x, y, thirsty, labelled, onPress }: {
   planting: Planting;

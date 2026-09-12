@@ -7,6 +7,7 @@ import {
 } from '../components/ui';
 import { PlantSprite } from '../components/PlantSprite';
 import { TraitChips } from '../components/TraitChips';
+import { MilestoneTrack } from '../components/MilestoneTrack';
 import { useGarden } from '../state/GardenContext';
 import { CONTAINERS, DEFAULT_CONTAINER, containerLabel, inEverydayTerms } from '../services/water';
 import {
@@ -141,6 +142,9 @@ export function PlantDetailModal({ planting, onClose }: {
                   <Text style={type.title} accessibilityRole="header">{planting.nickname}</Text>
                   <Text style={type.bodyMuted}>{species.name}</Text>
                 </View>
+
+                {/* The full track, with the words the bed in the plot has no room for. */}
+                <MilestoneTrack planting={planting} />
 
                 <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
                   <Pill text={stageLabel[stageOf(planting)]} icon="leaf" tint="brand" />

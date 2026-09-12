@@ -31,7 +31,7 @@ const SKY: Record<WeatherCondition, string> = {
 };
 
 const GRASS = '#74C05A';
-const MAX_PLANTS = 7;
+const MAX_PLANTS = 6;
 
 export const HomeStrip = memo(function HomeStrip({
   tier, colour, pets, homeName, plantings, condition, onOpen,
@@ -197,15 +197,17 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: 14,
-    height: 52,
+    bottom: 16,
+    height: 56,
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'flex-end',
     paddingRight: space.sm,
-    gap: 2,
+    // Starts halfway across, so the row never runs back over the house or its label.
+    paddingLeft: '42%',
+    gap: 4,
   },
-  plant: { width: 34, alignItems: 'center', justifyContent: 'flex-end' },
+  plant: { flex: 1, maxWidth: 42, alignItems: 'center', justifyContent: 'flex-end' },
   label: {
     position: 'absolute',
     left: space.sm,

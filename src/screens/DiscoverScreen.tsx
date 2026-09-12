@@ -1,14 +1,14 @@
 import React, { memo, useCallback, useMemo, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Card, Chip, ContentColumn, Pill, SectionHeader } from '../components/ui';
+import { Card, Chip, ContentColumn, Pill } from '../components/ui';
 import { PlantSprite, seedFromString } from '../components/PlantSprite';
 import { TraitChips } from '../components/TraitChips';
 import { Community } from '../components/Community';
 import { useGarden } from '../state/GardenContext';
 import { Species, harvestableIn, lightLabel, sowableIn, speciesById, lookOf } from '../models/species';
 import { getSpecies, progressOf, stageOf } from '../models/planting';
-import { REGIONS, growsInRegion } from '../models/regions';
+import { REGIONS, Region, RegionId, growsInRegion } from '../models/regions';
 import { DishMatch, dishSpeciesNames, dishTagLabel, dishesForGarden, starterCombos } from '../models/dishes';
 import { CORRECTIONS_MADE, REVIEWED_ON, REVIEW_CAVEAT, SOURCES, SPECIES_REVIEWED } from '../models/sources';
 import { color, radius, size, space, type } from '../theme';
@@ -41,6 +41,7 @@ export function DiscoverScreen() {
   const garden = useGarden();
   const [planting, setPlanting] = useState<Species | null>(null);
   const [plantingBed, setPlantingBed] = useState(false);
+  const [openSection, setOpenSection] = useState<SectionId | null>(null);
   const month = new Date().getMonth() + 1;
   const region = REGIONS[garden.region];
   // Only what is worth growing where this garden is. A British plot has no business
@@ -94,6 +95,12 @@ export function DiscoverScreen() {
     });
   }
 
+  const data: SectionData = {
+    month, region, harvesting, sowing, dishes, jobs, choose,
+    regionId: garden.region,
+    plantSomething: () => { haptics.selection(); setPlantingBed(true); },
+  };
+
   return (
     <ScrollView style={{ backgroundColor: color.canvas }} contentContainerStyle={styles.scroll}>
       <ContentColumn style={{ gap: size.cardGap }}>
@@ -111,100 +118,25 @@ export function DiscoverScreen() {
           </View>
         </Card>
 
-        {harvesting.length > 0 ? (
-          <Carousel title="In season now" subtitle="Ready to eat somewhere near you this month." species={harvesting} onChoose={choose} />
-        ) : null}
-
-        {sowing.length > 0 ? (
-          <Carousel
-            title={`Sow in ${MONTH_NAMES[month - 1]}`}
-            subtitle="Get these in the ground and they will have time to finish. Tap one to plant it."
-            species={sowing}
-            onChoose={choose}
-          />
-        ) : null}
-
-        <Carousel
-          title={`Native to ${region.label}`}
-          subtitle="Grown here long before the supermarket. Suited to the soil and the weather."
-          species={region.nativeSpeciesIds.map(speciesById)}
-          onChoose={choose}
-        />
-
-        <Card>
-          <SectionHeader title="At risk, worth growing" subtitle="Disappearing from plots and plates. Every bed that grows one keeps it going." />
-          <View style={{ gap: space.sm, marginTop: space.md }}>
-            {region.atRisk.map(({ speciesId, why }) => {
-              const species = speciesById(speciesId);
-              return (
-                <Pressable
-                  key={speciesId}
-                  onPress={() => choose(species)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Plant ${species.name}. ${why}`}
-                  style={({ pressed }) => [styles.riskRow, pressed && { backgroundColor: color.surfacePressed }]}
-                >
-                  <View style={styles.riskSprite}>
-                    <PlantSprite look={lookOf(species)} progress={0.85} seed={seedFromString(species.id)} height={44} />
-                  </View>
-                  <View style={{ flex: 1, gap: 2 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm, flexWrap: 'wrap' }}>
-                      <Text style={type.bodyStrong}>{species.name}</Text>
-                      <Pill text="At risk" icon="alert-circle-outline" tint="danger" />
-                    </View>
-                    <Text style={type.caption}>{why}</Text>
-                    <TraitChips traits={species.traits} max={3} />
-                  </View>
-                  <Ionicons name="add-circle-outline" size={24} color={color.textTertiary} />
-                </Pressable>
-              );
-            })}
-          </View>
-        </Card>
-
-        <Card>
-          <SectionHeader
-            title="Cook what you've grown"
-            subtitle={dishes.length ? 'Dishes your plot can already supply, most complete first.' : 'Grow these together and you have a dish, not just a crop.'}
-          />
-          <View style={{ gap: space.sm, marginTop: space.md }}>
-            {dishes.length
-              ? dishes.map((match) => <DishRow key={match.dish.id} match={match} onSow={choose} />)
-              : starterCombos.map(({ dish, growThese }) => (
-                  <View key={dish.id} style={styles.dish}>
-                    <Text style={type.bodyStrong}>{dish.name}</Text>
-                    <Text style={type.caption}>{dish.blurb}</Text>
-                    <Text style={[type.caption, { color: color.brandDeep }]}>
-                      Grow {dishSpeciesNames(growThese).join(', ')}.
-                    </Text>
-                    <View style={styles.chips}>
-                      {growThese.map((id) => (
-                        <Chip key={id} text={`Sow ${speciesById(id).name}`} icon="add" onPress={() => choose(speciesById(id))} />
-                      ))}
-                    </View>
-                  </View>
-                ))}
-          </View>
-        </Card>
-
-        <Community region={garden.region} month={month} />
-
-        <Card>
-          <View style={{ gap: space.md }}>
-            <SectionHeader title="This week" subtitle="Small jobs that pay off later." />
-            {jobs.map((job, index) => (
-              <View key={index} style={styles.job}>
-                <View style={styles.dot} />
-                <View style={{ flex: 1, gap: space.sm }}>
-                  <Text style={type.body}>{job.text}</Text>
-                  {job.action}
-                </View>
-              </View>
-            ))}
-          </View>
-        </Card>
-
-        <SourceNote />
+        {/* One open at a time. Collapsed, every heading in the screen fits without
+            scrolling, which is the whole point: this is a menu of things to look at,
+            not a column to wade through. */}
+        {SECTIONS.filter((section) => section.count(data) > 0).map((section) => (
+          <Panel
+            key={section.id}
+            title={section.title(data)}
+            count={section.count(data)}
+            countLabel={section.countLabel}
+            icon={section.icon}
+            open={openSection === section.id}
+            onToggle={() => {
+              haptics.selection();
+              setOpenSection((current) => (current === section.id ? null : section.id));
+            }}
+          >
+            {section.render(data)}
+          </Panel>
+        ))}
       </ContentColumn>
 
       <AddPlantModal
@@ -213,6 +145,236 @@ export function DiscoverScreen() {
         onClose={() => { setPlanting(null); setPlantingBed(false); }}
       />
     </ScrollView>
+  );
+}
+
+// --- the sections, as data -------------------------------------------------
+
+type SectionId = 'season' | 'sow' | 'native' | 'risk' | 'cook' | 'growers' | 'week' | 'sources';
+
+interface SectionData {
+  month: number;
+  regionId: RegionId;
+  region: Region;
+  harvesting: Species[];
+  sowing: Species[];
+  dishes: DishMatch[];
+  jobs: { text: string; action?: React.ReactNode }[];
+  choose: (species: Species) => void;
+  plantSomething: () => void;
+}
+
+interface Section {
+  id: SectionId;
+  icon: keyof typeof Ionicons.glyphMap;
+  title: (d: SectionData) => string;
+  /** Shown on the closed row, and a zero hides the section entirely. */
+  count: (d: SectionData) => number;
+  countLabel?: string;
+  render: (d: SectionData) => React.ReactNode;
+}
+
+const SECTIONS: Section[] = [
+  {
+    id: 'season',
+    icon: 'restaurant-outline',
+    title: () => 'In season now',
+    count: (d) => d.harvesting.length,
+    render: (d) => (
+      <Strip
+        subtitle="Ready to eat somewhere near you this month."
+        species={d.harvesting}
+        onChoose={d.choose}
+      />
+    ),
+  },
+  {
+    id: 'sow',
+    icon: 'leaf-outline',
+    title: (d) => `Sow in ${MONTH_NAMES[d.month - 1]}`,
+    count: (d) => d.sowing.length,
+    render: (d) => (
+      <Strip
+        subtitle="Get these in the ground and they will have time to finish. Tap one to plant it."
+        species={d.sowing}
+        onChoose={d.choose}
+      />
+    ),
+  },
+  {
+    id: 'native',
+    icon: 'flag-outline',
+    title: (d) => `Native to ${d.region.label}`,
+    count: (d) => d.region.nativeSpeciesIds.length,
+    render: (d) => (
+      <Strip
+        subtitle="Grown here long before the supermarket. Suited to the soil and the weather."
+        species={d.region.nativeSpeciesIds.map(speciesById)}
+        onChoose={d.choose}
+      />
+    ),
+  },
+  {
+    id: 'risk',
+    icon: 'alert-circle-outline',
+    title: () => 'At risk, worth growing',
+    count: (d) => d.region.atRisk.length,
+    render: (d) => (
+      <View style={{ gap: space.sm }}>
+        <Text style={type.caption}>
+          Disappearing from plots and plates. Every bed that grows one keeps it going.
+        </Text>
+        {d.region.atRisk.map(({ speciesId, why }) => {
+          const species = speciesById(speciesId);
+          return (
+            <Pressable
+              key={speciesId}
+              onPress={() => d.choose(species)}
+              accessibilityRole="button"
+              accessibilityLabel={`Plant ${species.name}. ${why}`}
+              style={({ pressed }) => [styles.riskRow, pressed && { backgroundColor: color.surfacePressed }]}
+            >
+              <View style={styles.riskSprite}>
+                <PlantSprite look={lookOf(species)} progress={0.85} seed={seedFromString(species.id)} height={44} />
+              </View>
+              <View style={{ flex: 1, gap: 2 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm, flexWrap: 'wrap' }}>
+                  <Text style={type.bodyStrong}>{species.name}</Text>
+                  <Pill text="At risk" icon="alert-circle-outline" tint="danger" />
+                </View>
+                <Text style={type.caption}>{why}</Text>
+                <TraitChips traits={species.traits} />
+              </View>
+              <Ionicons name="add-circle-outline" size={24} color={color.textTertiary} />
+            </Pressable>
+          );
+        })}
+      </View>
+    ),
+  },
+  {
+    id: 'cook',
+    icon: 'nutrition-outline',
+    title: () => "Cook what you've grown",
+    count: (d) => (d.dishes.length ? d.dishes.length : starterCombos.length),
+    countLabel: 'dishes',
+    render: (d) => (
+      <View style={{ gap: space.sm }}>
+        <Text style={type.caption}>
+          {d.dishes.length
+            ? 'Dishes your plot can already supply, most complete first.'
+            : 'Grow these together and you have a dish, not just a crop.'}
+        </Text>
+        {d.dishes.length
+          ? d.dishes.map((match) => <DishRow key={match.dish.id} match={match} onSow={d.choose} />)
+          : starterCombos.map(({ dish, growThese }) => (
+              <View key={dish.id} style={styles.dish}>
+                <Text style={type.bodyStrong}>{dish.name}</Text>
+                <Text style={type.caption}>{dish.blurb}</Text>
+                <Text style={[type.caption, { color: color.brandDeep }]}>
+                  Grow {dishSpeciesNames(growThese).join(', ')}.
+                </Text>
+                <View style={styles.chips}>
+                  {growThese.map((id) => (
+                    <Chip key={id} text={`Sow ${speciesById(id).name}`} icon="add" onPress={() => d.choose(speciesById(id))} />
+                  ))}
+                </View>
+              </View>
+            ))}
+      </View>
+    ),
+  },
+  {
+    id: 'growers',
+    icon: 'people-outline',
+    title: () => 'From other growers',
+    count: () => 1,
+    countLabel: '',
+    render: (d) => <Community region={d.regionId} month={d.month} bare />,
+  },
+  {
+    id: 'week',
+    icon: 'calendar-outline',
+    title: () => 'This week',
+    count: (d) => d.jobs.length,
+    countLabel: 'jobs',
+    render: (d) => (
+      <View style={{ gap: space.md }}>
+        <Text style={type.caption}>Small jobs that pay off later.</Text>
+        {d.jobs.map((job, index) => (
+          <View key={index} style={styles.job}>
+            <View style={styles.dot} />
+            <View style={{ flex: 1, gap: space.sm }}>
+              <Text style={type.body}>{job.text}</Text>
+              {job.action}
+            </View>
+          </View>
+        ))}
+      </View>
+    ),
+  },
+  {
+    id: 'sources',
+    icon: 'document-text-outline',
+    title: () => 'Where this comes from',
+    count: () => 1,
+    countLabel: '',
+    render: () => <SourceNote />,
+  },
+];
+
+/// One collapsible section. Closed it is a single row - a name, an icon and how many
+/// things are inside. Open it shows its contents and everything else stays closed.
+function Panel({ title, count, countLabel, icon, open, onToggle, children }: {
+  title: string;
+  count: number;
+  countLabel?: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  open: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <Card padding={space.sm}>
+      <Pressable
+        onPress={onToggle}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        accessibilityLabel={`${title}${countLabel === '' ? '' : `, ${count} ${countLabel ?? 'plants'}`}`}
+        style={({ pressed }) => [styles.panelHead, pressed && { backgroundColor: color.surfaceSunken }]}
+      >
+        <Ionicons name={icon} size={18} color={open ? color.brandDeep : color.textSecondary} />
+        <Text style={[type.bodyStrong, { flex: 1 }, open && { color: color.brandDeep }]} numberOfLines={1}>
+          {title}
+        </Text>
+        {countLabel === '' ? null : <Pill text={String(count)} tint={open ? 'brand' : 'neutral'} />}
+        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={18} color={color.textTertiary} />
+      </Pressable>
+      {open ? <View style={{ paddingTop: space.sm }}>{children}</View> : null}
+    </Card>
+  );
+}
+
+/// The horizontal shelf of plants, unchanged - it is what the sections open into.
+function Strip({ subtitle, species, onChoose }: {
+  subtitle: string;
+  species: Species[];
+  onChoose: (species: Species) => void;
+}) {
+  return (
+    <View style={{ gap: space.sm }}>
+      <Text style={type.caption}>{subtitle}</Text>
+      <FlatList
+        horizontal
+        data={species}
+        keyExtractor={(item) => item.id}
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ gap: space.sm, paddingVertical: 2 }}
+        initialNumToRender={4}
+        windowSize={3}
+        renderItem={({ item }) => <CarouselTile species={item} onChoose={onChoose} />}
+      />
+    </View>
   );
 }
 
@@ -290,33 +452,6 @@ function DishRow({ match, onSow }: { match: DishMatch; onSow: (species: Species)
   );
 }
 
-function Carousel({ title, subtitle, species, onChoose }: {
-  title: string;
-  subtitle: string;
-  species: Species[];
-  onChoose: (species: Species) => void;
-}) {
-  return (
-    <Card>
-      <SectionHeader title={title} subtitle={subtitle} />
-      {/* Windowed rather than a plain row: each tile draws a whole plant, and building
-          ten of them off-screen was part of why this tab took a moment to open. */}
-      <FlatList
-        horizontal
-        data={species}
-        keyExtractor={(item) => item.id}
-        showsHorizontalScrollIndicator={false}
-        style={styles.carousel}
-        contentContainerStyle={styles.carouselContent}
-        initialNumToRender={3}
-        maxToRenderPerBatch={3}
-        windowSize={3}
-        renderItem={({ item }) => <CarouselTile species={item} onChoose={onChoose} />}
-      />
-    </Card>
-  );
-}
-
 const CarouselTile = memo(function CarouselTile({ species, onChoose }: {
   species: Species;
   onChoose: (species: Species) => void;
@@ -334,12 +469,21 @@ const CarouselTile = memo(function CarouselTile({ species, onChoose }: {
       </View>
       <Text style={type.bodyStrong} numberOfLines={1}>{species.name}</Text>
       <Text style={type.caption} numberOfLines={1}>{lightLabel[species.light]}</Text>
-      <TraitChips traits={species.traits} max={2} compact />
+      <TraitChips traits={species.traits} compact />
     </Pressable>
   );
 });
 
 const styles = StyleSheet.create({
+  panelHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    paddingVertical: space.sm,
+    paddingHorizontal: space.sm,
+    borderRadius: radius.sm,
+    minHeight: size.tap,
+  },
   sourceToggle: {
     flexDirection: 'row',
     alignItems: 'center',

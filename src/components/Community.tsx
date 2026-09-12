@@ -27,7 +27,12 @@ const KIND_ICON: Record<PostKind, keyof typeof Ionicons.glyphMap> = {
   sowing: 'leaf-outline',
 };
 
-export function Community({ region, month }: { region: RegionId; month: number }) {
+export function Community({ region, month, bare = false }: {
+  region: RegionId;
+  month: number;
+  /** Already inside a card - drop the outer one and the duplicated heading. */
+  bare?: boolean;
+}) {
   const [feed, setFeed] = useState<Feed | null>(null);
   const [composing, setComposing] = useState(false);
   const [kind, setKind] = useState<PostKind>('tip');
@@ -60,14 +65,22 @@ export function Community({ region, month }: { region: RegionId; month: number }
     refresh();
   };
 
+  const Shell = bare ? View : Card;
+
   return (
-    <Card>
+    <Shell>
       <View style={{ gap: space.md }}>
-        <SectionHeader
-          title="Growers near you"
-          subtitle={`What people in ${REGIONS[region].label} are doing this month.`}
-          right={<Pill text="Preview" tint="neutral" />}
-        />
+        {bare ? (
+          <Text style={type.caption}>
+            What people in {REGIONS[region].label} are doing this month.
+          </Text>
+        ) : (
+          <SectionHeader
+            title="Growers near you"
+            subtitle={`What people in ${REGIONS[region].label} are doing this month.`}
+            right={<Pill text="Preview" tint="neutral" />}
+          />
+        )}
 
         <View style={styles.notice}>
           <Ionicons name="information-circle-outline" size={16} color={color.textSecondary} />
@@ -144,7 +157,7 @@ export function Community({ region, month }: { region: RegionId; month: number }
           ))}
         </View>
       </View>
-    </Card>
+    </Shell>
   );
 }
 

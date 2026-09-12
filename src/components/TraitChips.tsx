@@ -4,8 +4,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { PlantTrait, traitIcon, traitLabel } from '../models/species';
 import { color, radius, space } from '../theme';
 
-/// What a plant is good for, as small chips. `max` caps the row on tiles; leave it off
-/// to show the lot on a detail sheet.
+/// What a plant is good for, as small chips.
+///
+/// All of them, always. A tile that says "+3" is asking you to open something to find out
+/// what a plant is good for, which is exactly the question the chips exist to answer.
+/// `max` is kept for the rare place that genuinely cannot fit them.
 export function TraitChips({ traits, max, compact }: {
   traits?: PlantTrait[];
   max?: number;

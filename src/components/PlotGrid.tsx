@@ -20,10 +20,10 @@ import { color, radius, size, space, type } from '../theme';
 /// the row reads left to right as things you can press rather than as a picture to
 /// explore. Nothing here zooms, pans or holds a camera position.
 
-// Two across rather than three: each bed has to carry a milestone track with words on
-// it now, and three columns on a phone left no room to read them.
-const COLUMNS = 2;
-const SPRITE_H = 92;
+// Three across: more of the plot on screen at once. The milestone track moved inside the
+// bed's own picture to pay for it - there is no room for words under a 100px tile.
+const COLUMNS = 3;
+const SPRITE_H = 78;
 const SOIL_H = 22;
 
 /// Must match the floor inside PlantSprite, which never draws a plant at zero size.
@@ -121,6 +121,10 @@ const PlantedBed = memo(function PlantedBed({ planting, thirsty, onPress }: {
       style={({ pressed }) => [styles.cell, pressed && styles.cellPressed]}
     >
       <View style={styles.stage}>
+        {/* Over the sky, above the plant: progress without stealing a line of height. */}
+        <View style={styles.track} pointerEvents="none">
+          <MilestoneTrack planting={planting} compact />
+        </View>
         <View style={styles.sprite}>
           <PlantSprite
             look={lookOf(species)}
@@ -138,19 +142,14 @@ const PlantedBed = memo(function PlantedBed({ planting, thirsty, onPress }: {
       </View>
       {/* A nickname earns the bold line and the species drops underneath it. Without one,
           "Radish" over "Radish" was just the same word twice. */}
-      {/* Fixed height whether or not there is a nickname, so the milestone tracks in a
-          row line up with each other instead of stepping. */}
-      <View style={styles.names}>
-        {named ? (
-          <>
-            <Text numberOfLines={1} style={styles.name}>{planting.nickname}</Text>
-            <Text numberOfLines={1} style={type.caption}>{species.name}</Text>
-          </>
-        ) : (
-          <Text numberOfLines={1} style={styles.name}>{species.name}</Text>
-        )}
-      </View>
-      <MilestoneTrack planting={planting} />
+      {named ? (
+        <>
+          <Text numberOfLines={1} style={styles.name}>{planting.nickname}</Text>
+          <Text numberOfLines={1} style={type.caption}>{species.name}</Text>
+        </>
+      ) : (
+        <Text numberOfLines={1} style={styles.name}>{species.name}</Text>
+      )}
     </Pressable>
   );
 });
@@ -233,6 +232,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  names: { height: 34, justifyContent: 'flex-start' },
+  track: { position: 'absolute', top: 6, left: 8, right: 8, zIndex: 2 },
   name: { fontSize: 13, lineHeight: 16, fontWeight: '700', color: color.text },
 });
