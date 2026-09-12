@@ -1,5 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import React, { memo, useEffect, useRef, useState } from 'react';
+import { InteractionManager } from 'react-native';
+import { Animated, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { GardenProvider, useGarden } from './src/state/GardenContext';
@@ -8,6 +9,7 @@ import { DiscoverScreen } from './src/screens/DiscoverScreen';
 import { SunSpotScreen } from './src/screens/SunSpotScreen';
 import { BadgesScreen } from './src/screens/BadgesScreen';
 import { useReduceMotion } from './src/hooks/useReduceMotion';
+import { VisibilityProvider } from './src/components/Visibility';
 import { color, motion, radius, shadow, size, space, type } from './src/theme';
 import * as haptics from './src/services/haptics';
 
@@ -34,6 +36,28 @@ function Shell() {
   // A tab mounts the first time it is opened and then stays mounted, so the plot keeps
   // its zoom, lists keep their scroll position, and the compass is not re-requested.
   const [visited, setVisited] = useState<Set<TabKey>>(() => new Set(['allotment']));
+
+  // Build the other three while nobody is waiting, one at a time.
+  //
+  // Mounting on first press is what made a tab feel slow, and it only ever felt slow
+  // once. Doing it after launch moves that cost somewhere nobody is looking - but all
+  // three at once is a long enough block to be felt as a stutter, so they go in one per
+  // beat instead.
+  useEffect(() => {
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const task = InteractionManager.runAfterInteractions(() => {
+      TABS.forEach((item, index) => {
+        if (index === 0) return;
+        timers.push(setTimeout(() => {
+          setVisited((current) => (current.has(item.key) ? current : new Set(current).add(item.key)));
+        }, index * 260));
+      });
+    });
+    return () => {
+      task.cancel();
+      timers.forEach(clearTimeout);
+    };
+  }, []);
 
   const choose = (next: TabKey) => {
     if (next === tab) return;
@@ -87,41 +111,35 @@ function Shell() {
   );
 }
 
-/// One tab's content. Hidden panes are kept in the tree but removed from layout, so
-/// switching back costs nothing and loses nothing. The incoming pane fades up briefly.
-function TabPane({ active, mounted, children }: {
+/// One tab's content, kept alive behind the tab bar.
+///
+/// Hidden panes are transparent rather than `display: none`, and that distinction is the
+/// whole reason switching is quick. `display: none` takes a pane out of layout, so
+/// building it in advance buys nothing: the first time you press the tab, the entire
+/// screen has to be measured and positioned before anything can appear. Left transparent,
+/// each pane is measured once, during the quiet moment after launch, and switching is
+/// afterwards only a change of opacity - no layout, no rebuild, and scroll positions and
+/// plot zoom all survive untouched.
+///
+/// There is deliberately no cross-fade either. A fade cannot begin until the incoming
+/// pane is ready, so it does not cover the switch, it queues behind it.
+const TabPane = memo(function TabPane({ active, mounted, children }: {
   active: boolean;
   mounted: boolean;
   children: React.ReactNode;
 }) {
-  const opacity = useRef(new Animated.Value(active ? 1 : 0)).current;
-  const reduceMotion = useReduceMotion();
-
-  useEffect(() => {
-    if (!active) {
-      opacity.setValue(0);
-      return;
-    }
-    Animated.timing(opacity, {
-      toValue: 1,
-      duration: reduceMotion ? 0 : motion.standard,
-      easing: Easing.out(Easing.quad),
-      useNativeDriver: true,
-    }).start();
-  }, [active]);
-
   if (!mounted) return null;
   return (
-    <Animated.View
-      style={[StyleSheet.absoluteFill, { opacity }, !active && styles.hidden]}
+    <View
+      style={[StyleSheet.absoluteFill, active ? styles.paneOn : styles.paneOff]}
       pointerEvents={active ? 'auto' : 'none'}
       accessibilityElementsHidden={!active}
       importantForAccessibility={active ? 'auto' : 'no-hide-descendants'}
     >
-      {children}
-    </Animated.View>
+      <VisibilityProvider value={active}>{children}</VisibilityProvider>
+    </View>
   );
-}
+});
 
 /// Badges are private, so this is the whole celebration - a quiet note to yourself.
 /// Tap it to send it away early.
@@ -174,7 +192,8 @@ function BadgeToast() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: color.canvas },
-  hidden: { display: 'none' },
+  paneOn: { opacity: 1, zIndex: 1 },
+  paneOff: { opacity: 0, zIndex: 0 },
   tabBar: {
     flexDirection: 'row',
     borderTopWidth: 1,

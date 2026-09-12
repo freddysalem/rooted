@@ -1,8 +1,9 @@
-import React, { useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Card, ContentColumn, EmptyState, ProgressBar } from '../components/ui';
-import { IsoPlot } from '../components/IsoPlot';
+import { PlotGrid } from '../components/PlotGrid';
+import { HomeStrip } from '../components/HomeStrip';
 import { useGarden } from '../state/GardenContext';
 import { Planting } from '../models/planting';
 import { COLOUR_UNLOCK_LEVEL, HOME_COLOURS, levelProgress, petsUpTo } from '../models/progress';
@@ -22,9 +23,20 @@ export function AllotmentScreen() {
   const [selected, setSelected] = useState<Planting | null>(null);
   const [plotToPlant, setPlotToPlant] = useState<number | null>(null);
 
+  const openPlant = useCallback((planting: Planting) => {
+    haptics.pulse();
+    setSelected(planting);
+  }, []);
+  const plantEmpty = useCallback((plot: number) => {
+    haptics.selection();
+    setPlotToPlant(plot);
+  }, []);
+
   const alert = garden.weather ? conditionAlert(garden.weather.condition) : null;
   const selectedLive = selected ? garden.plantings.find((p) => p.id === selected.id) ?? null : null;
   const empty = garden.ready && garden.plantings.length === 0;
+  // Stable identity, or the plot's world geometry is recomputed on every render.
+  const pets = useMemo(() => petsUpTo(garden.level.level), [garden.level.level]);
 
   const greeting = (() => {
     const hour = new Date().getHours();
@@ -180,23 +192,36 @@ export function AllotmentScreen() {
       </ContentColumn>
 
       <View style={styles.plotArea}>
-        <IsoPlot
+        <PlotGrid
           plantings={garden.plantings}
           isThirsty={garden.needsWater}
-          homeTier={garden.level.home}
-          homeColour={garden.homeColour}
-          pets={petsUpTo(garden.level.level)}
-          controls={garden.plantings.length > 0}
-          onOpenPlant={(planting) => {
-            haptics.pulse();
-            setSelected(planting);
-          }}
-          onPlantEmpty={(plot) => {
-            haptics.selection();
-            setPlotToPlant(plot);
-          }}
+          header={
+            <View>
+              <HomeStrip
+                tier={garden.level.home}
+                colour={garden.homeColour}
+                pets={pets}
+                homeName={garden.level.homeName}
+              />
+              {!garden.remindersOn && garden.plantings.length > 0 ? (
+                <Card style={{ marginBottom: space.md }} padding={space.md}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
+                    <Ionicons name="notifications-outline" size={22} color={color.brandDeep} />
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <Text style={type.bodyStrong}>Watering reminders</Text>
+                      <Text style={type.caption}>
+                        A nudge on the day each plant is due, with how much to give it.
+                      </Text>
+                    </View>
+                    <Button label="Turn on" compact onPress={() => garden.enableReminders()} />
+                  </View>
+                </Card>
+              ) : null}
+            </View>
+          }
+          onOpenPlant={openPlant}
+          onPlantEmpty={plantEmpty}
         />
-
       </View>
 
       <PlantDetailModal planting={selectedLive} onClose={() => setSelected(null)} />

@@ -1,44 +1,66 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Modal, PanResponder, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View,
+  LayoutChangeEvent, Modal, PanResponder, Pressable, SafeAreaView, StyleSheet, Text, View,
 } from 'react-native';
+import Slider from '@react-native-community/slider';
 import { DeviceMotion } from 'expo-sensors';
 import { Ionicons } from '@expo/vector-icons';
-import { Button, Card, ContentColumn, Input, SectionHeader, SheetBar } from '../components/ui';
+import { Button, Card, ContentColumn } from '../components/ui';
+import { CalibrateModal } from './CalibrateModal';
 import { useGarden } from '../state/GardenContext';
-import { Planting, latestHeight } from '../models/planting';
+import { Planting, getSpecies, latestHeight } from '../models/planting';
+import { ScreenScale, defaultScale, loadScale, saveScale } from '../services/measure';
 import { color, radius, size, space, tabular, type } from '../theme';
 import * as haptics from '../services/haptics';
 
-type ReferenceKey = 'creditCard' | 'seedPacket' | 'trowel' | 'custom';
-
-const REFERENCES: { key: ReferenceKey; label: string; cm: number }[] = [
-  { key: 'creditCard', label: 'Card', cm: 8.6 },
-  { key: 'seedPacket', label: 'Packet', cm: 16 },
-  { key: 'trowel', label: 'Trowel', cm: 30 },
-  { key: 'custom', label: 'Other', cm: 20 },
-];
-
-const MIN_SPAN = 20;
-const MAX_SPAN = 200;
-const STEP = 5;
-
-/// Photo-based measurement, reduced to the part that actually does the work.
+/// Recording how tall a plant has got.
 ///
-/// The trick is a reference object of known size stood in the soil: whatever the camera
-/// distance, the ratio between the reference and the plant is fixed, so
-/// plant_cm = reference_cm x (plant_on_screen / reference_on_screen). Drag the two
-/// markers to match what you see and the arithmetic falls out.
+/// **Phone ruler.** Stand the handset on the soil beside the plant and put the line where
+/// the plant's top is. The phone is the ruler, held against the thing being measured.
 ///
-/// The device's motion sensor keeps the shot square - a tilted frame skews the ratio and
-/// quietly ruins the measurement, so the level has to be honest about it.
+/// Two things make or break this and the first version got both wrong.
+///
+/// The first is where zero is. It has to be the bottom edge of the handset - the edge
+/// actually resting on the soil - which means the ruler must run to the very bottom of
+/// the glass with nothing beneath it, plus the few millimetres of case below that. The
+/// old layout put a soil bar, a footer and the home-indicator inset under the track and
+/// still measured from the track's own bottom, so every reading came out about 2cm short
+/// and the tallest thing it could measure was around 6cm of a 14cm phone.
+///
+/// The second is that you cannot aim precisely at a small handle while crouched over a
+/// bed holding a phone upright in one hand - and pressing hard enough to catch a 30pt
+/// grip is enough to tip the phone out of plumb, which skews the reading anyway. So the
+/// whole screen is the control: touch at the plant's height and the line goes there.
+/// Everything else floats on top and lets touches through, and the fine adjustment is
+/// buttons rather than fingers on glass.
+///
+/// **Tape measure** is for anything taller than the phone: a number you have already read
+/// off a tape, coarse on the slider and exact on the buttons.
+
+type Mode = 'ruler' | 'tape';
+
+const TAPE_MAX = 300;
+
+/// Upright enough for the reading to stand up: within about six degrees of plumb. Leaning
+/// the phone back makes a plant measure taller than it is.
+const PLUMB_TOLERANCE = 0.11;
+
+const formatCm = (value: number) => (value >= 100 ? Math.round(value).toString() : value.toFixed(1));
+const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
+
 export function MeasureModal({ planting, onClose }: { planting: Planting | null; onClose: () => void }) {
   const garden = useGarden();
-  const [reference, setReference] = useState<ReferenceKey>('seedPacket');
-  const [customCm, setCustomCm] = useState('20');
-  const [referenceSpan, setReferenceSpan] = useState(90);
-  const [plantSpan, setPlantSpan] = useState(150);
-  const [tilt, setTilt] = useState({ roll: 0, pitch: 0, available: false });
+  const [mode, setMode] = useState<Mode>('ruler');
+  const [scale, setScale] = useState<ScreenScale>(defaultScale);
+  const [calibrating, setCalibrating] = useState(false);
+  const [tilt, setTilt] = useState({ roll: 0, plumb: 0, available: false });
+  const [tapeCm, setTapeCm] = useState(20);
+
+  // Measured from the very bottom of the glass, because that is where the ruler's zero is.
+  const [trackHeight, setTrackHeight] = useState(0);
+  const [markFromBottom, setMarkFromBottom] = useState(0);
+
+  useEffect(() => { loadScale().then(setScale); }, []);
 
   useEffect(() => {
     if (!planting) return;
@@ -49,17 +71,20 @@ export function MeasureModal({ planting, onClose }: { planting: Planting | null;
       if (!available || cancelled) return;
       let listener: { remove: () => void };
       try {
-        DeviceMotion.setUpdateInterval(80);
+        DeviceMotion.setUpdateInterval(120);
         listener = DeviceMotion.addListener((data) => {
           if (!data.rotation) return;
-          setTilt({ roll: data.rotation.gamma, pitch: data.rotation.beta + Math.PI / 2, available: true });
+          // beta is pitch: a quarter turn from flat is a phone stood on its end.
+          setTilt({
+            roll: data.rotation.gamma,
+            plumb: data.rotation.beta - Math.PI / 2,
+            available: true,
+          });
         });
       } catch {
         // The web build reports the sensor as available and then has no listener.
         return;
       }
-      // Closing the sheet before the availability check returns used to leave the
-      // motion sensor running, one listener per open.
       if (cancelled) listener.remove();
       else subscription = listener;
     })();
@@ -69,313 +94,436 @@ export function MeasureModal({ planting, onClose }: { planting: Planting | null;
     };
   }, [planting?.id]);
 
+  const previous = planting ? latestHeight(planting) : null;
+
+  // Start where this plant left off, so a weekly measurement is a nudge rather than a hunt.
+  useEffect(() => {
+    if (!planting || !trackHeight) return;
+    const start = previous ?? 10;
+    setTapeCm(clamp(start, 1, TAPE_MAX));
+    setMarkFromBottom(clamp((start - scale.bezelCm) * scale.pointsPerCm, 0, trackHeight));
+  }, [planting?.id, scale.pointsPerCm, trackHeight]);
+
   if (!planting) return <Modal visible={false} onRequestClose={onClose}><View /></Modal>;
 
-  const customValue = Number(customCm.replace(',', '.'));
-  const customValid = Number.isFinite(customValue) && customValue > 0 && customValue <= 300;
-  const referenceCm = reference === 'custom'
-    ? (customValid ? customValue : 0)
-    : REFERENCES.find((r) => r.key === reference)!.cm;
-
-  const measured = referenceSpan > 8 && referenceCm > 0 ? referenceCm * (plantSpan / referenceSpan) : 0;
-  const isLevel = Math.abs(tilt.roll) < 0.06 && Math.abs(tilt.pitch) < 0.06;
-  const previous = latestHeight(planting);
-  const canSave = measured > 0;
+  const species = getSpecies(planting);
+  const ceiling = trackHeight / scale.pointsPerCm + scale.bezelCm;
+  const rulerCm = markFromBottom / scale.pointsPerCm + scale.bezelCm;
+  const measured = mode === 'ruler' ? rulerCm : tapeCm;
+  const isPlumb = Math.abs(tilt.plumb) < PLUMB_TOLERANCE && Math.abs(tilt.roll) < PLUMB_TOLERANCE;
+  const atCeiling = mode === 'ruler' && trackHeight > 0 && markFromBottom >= trackHeight - 3;
 
   const save = () => {
-    if (!canSave) return;
+    if (measured <= 0) return;
     garden.recordHeight(measured, planting);
     haptics.success();
     onClose();
   };
 
-  const levelState = !tilt.available ? 'none' : isLevel ? 'level' : 'tilted';
-  const levelCopy = {
-    none: { title: 'No motion sensor here', body: 'Hold the phone as square to the plant as you can by eye.' },
-    level: { title: 'Level - take the shot', body: 'The frame is square, so the ratio will be true.' },
-    tilted: { title: 'Straighten up a little', body: 'A tilted frame stretches one side and the ratio stops being true.' },
-  }[levelState];
-  const bubbleColour = { none: color.textTertiary, level: color.brand, tilted: color.sun }[levelState];
+  const nudge = (deltaCm: number) => {
+    haptics.selection();
+    if (mode === 'tape') {
+      setTapeCm((current) => clamp(Math.round((current + deltaCm) * 10) / 10, 0.5, TAPE_MAX));
+      return;
+    }
+    setMarkFromBottom((current) =>
+      clamp(current + deltaCm * scale.pointsPerCm, 0, trackHeight)
+    );
+  };
 
   return (
-    <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: color.canvas }}>
-        <SheetBar
-          title={`Measure ${planting.nickname}`}
-          onCancel={onClose}
-          action="Save"
-          onAction={save}
-          actionDisabled={!canSave}
-        />
+    <Modal visible animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
+      <View style={styles.root}>
+        {mode === 'ruler' ? (
+          <Ruler
+            scale={scale}
+            trackHeight={trackHeight}
+            onTrackHeight={setTrackHeight}
+            markFromBottom={markFromBottom}
+            onMark={setMarkFromBottom}
+            ceiling={ceiling}
+          />
+        ) : null}
 
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-          <ContentColumn style={{ gap: size.cardGap }}>
-            <Card padding={space.md}>
-              <View
-                style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}
-                accessibilityLabel={levelCopy.title}
-              >
-                <View style={[styles.levelRing, levelState === 'none' && styles.levelRingOff]}>
-                  {levelState === 'none' ? (
-                    <Ionicons name="remove" size={18} color={color.textTertiary} />
-                  ) : (
-                    <View
-                      style={[
-                        styles.bubble,
-                        {
-                          backgroundColor: bubbleColour,
-                          transform: [
-                            { translateX: clamp(tilt.roll * 60, -16, 16) },
-                            { translateY: clamp(tilt.pitch * 60, -16, 16) },
-                          ],
-                        },
-                      ]}
-                    />
-                  )}
-                </View>
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={type.bodyStrong}>{levelCopy.title}</Text>
-                  <Text style={type.caption}>{levelCopy.body}</Text>
-                </View>
-              </View>
-            </Card>
+        {/* Floats over the ruler and lets touches through, so the line can still be set
+            behind it - a tall plant needs the line exactly where these controls are. */}
+        <SafeAreaView style={styles.overlay} pointerEvents="box-none">
+          <View style={styles.bar} pointerEvents="box-none">
+            <Pressable
+              onPress={onClose}
+              accessibilityRole="button"
+              accessibilityLabel="Close"
+              hitSlop={10}
+              style={({ pressed }) => [styles.close, pressed && { opacity: 0.7 }]}
+            >
+              <Ionicons name="close" size={20} color={color.textSecondary} />
+            </Pressable>
 
-            <Card>
-              <View style={{ gap: space.md }}>
-                <SectionHeader
-                  title="Reference object"
-                  subtitle="Stand something you know the size of in the soil."
-                />
-                <View style={styles.segment} accessibilityRole="radiogroup" accessibilityLabel="Reference object">
-                  {REFERENCES.map((item) => {
-                    const on = reference === item.key;
-                    return (
-                      <Pressable
-                        key={item.key}
-                        onPress={() => {
-                          haptics.selection();
-                          setReference(item.key);
-                        }}
-                        accessibilityRole="radio"
-                        accessibilityLabel={item.key === 'custom' ? 'Other length' : `${item.label}, ${item.cm} centimetres`}
-                        accessibilityState={{ selected: on }}
-                        style={({ pressed }) => [
-                          styles.segmentItem,
-                          on && styles.segmentActive,
-                          pressed && !on && { backgroundColor: color.surfacePressed },
-                        ]}
-                      >
-                        <Text style={[styles.segmentLabel, on && styles.segmentLabelActive]}>{item.label}</Text>
-                        {item.key !== 'custom' ? (
-                          <Text style={[styles.segmentSub, tabular, on && { color: color.brandDeep }]}>{item.cm} cm</Text>
-                        ) : null}
-                      </Pressable>
-                    );
-                  })}
-                </View>
-                {reference === 'custom' ? (
-                  <View style={{ gap: space.xs }}>
-                    <Input
-                      label="Its length in centimetres"
-                      value={customCm}
-                      onChangeText={setCustomCm}
-                      keyboardType="decimal-pad"
-                      placeholder="20"
-                      maxLength={5}
-                    />
-                    {!customValid ? (
-                      <Text style={[type.caption, { color: color.dangerText }]}>Enter a length between 1 and 300 cm.</Text>
-                    ) : null}
-                  </View>
-                ) : null}
-              </View>
-            </Card>
+            <Text numberOfLines={1} style={styles.title}>{planting.nickname || species.name}</Text>
 
-            <Card>
-              <View style={{ gap: space.md }}>
-                <SectionHeader
-                  title="Match the two bars"
-                  subtitle="Drag each handle to the height it appears next to the real thing."
-                />
-                <View style={styles.bars}>
-                  <DragBar
-                    span={referenceSpan}
-                    setSpan={setReferenceSpan}
-                    tint={color.sun}
-                    tintText={color.sunText}
-                    caption="Reference"
-                    detail={referenceCm > 0 ? `${formatCm(referenceCm)} cm` : '–'}
-                  />
-                  <DragBar
-                    span={plantSpan}
-                    setSpan={setPlantSpan}
-                    tint={color.brand}
-                    tintText={color.brandDeep}
-                    caption="Plant"
-                  />
-                  <View style={styles.result}>
-                    <Text style={type.label}>Measured height</Text>
-                    <Text style={[styles.resultValue, tabular]}>
-                      {measured > 0 ? `${formatCm(measured)} cm` : '–'}
-                    </Text>
-                    {previous !== null && measured > 0 ? (
-                      <Text style={[type.caption, tabular, { color: measured >= previous ? color.brandDeep : color.dangerText }]}>
-                        {measured >= previous
-                          ? `Up ${formatCm(measured - previous)} cm on last time`
-                          : `Down ${formatCm(previous - measured)} cm on last time`}
-                      </Text>
-                    ) : previous === null && measured > 0 ? (
-                      <Text style={type.caption}>First measurement.</Text>
-                    ) : null}
-                  </View>
-                </View>
-              </View>
-            </Card>
-          </ContentColumn>
-        </ScrollView>
-
-        <View style={styles.footer}>
-          <ContentColumn>
-            <Button
-              label={canSave ? `Save ${formatCm(measured)} cm` : 'Set the reference first'}
-              icon="checkmark"
+            <Pressable
               onPress={save}
-              disabled={!canSave}
-            />
-          </ContentColumn>
-        </View>
-      </SafeAreaView>
+              accessibilityRole="button"
+              accessibilityLabel={`Save ${formatCm(measured)} centimetres`}
+              hitSlop={10}
+              style={({ pressed }) => [styles.save, pressed && { opacity: 0.85 }]}
+            >
+              <Text style={styles.saveText}>Save</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.panel} pointerEvents="box-none">
+            <View style={styles.modeRow} pointerEvents="auto">
+              <ModeTab label="Phone ruler" icon="phone-portrait-outline" on={mode === 'ruler'}
+                onPress={() => { haptics.selection(); setMode('ruler'); }} />
+              <ModeTab label="Tape measure" icon="resize-outline" on={mode === 'tape'}
+                onPress={() => { haptics.selection(); setMode('tape'); }} />
+            </View>
+
+            <View style={styles.readout} pointerEvents="box-none">
+              <Text style={[styles.value, tabular]}>{formatCm(measured)}</Text>
+              <Text style={styles.unit}>cm</Text>
+              <View style={{ flex: 1 }} />
+              <View style={styles.nudges} pointerEvents="auto">
+                <NudgeButton label="−1" onPress={() => nudge(-1)} />
+                <NudgeButton label="−0.1" onPress={() => nudge(-0.1)} />
+                <NudgeButton label="+0.1" onPress={() => nudge(0.1)} />
+                <NudgeButton label="+1" onPress={() => nudge(1)} />
+              </View>
+            </View>
+
+            {previous !== null ? (
+              <Text style={[type.caption, tabular]}>
+                {measured >= previous
+                  ? `Up ${formatCm(measured - previous)} cm on ${formatCm(previous)} cm last time`
+                  : `Down ${formatCm(previous - measured)} cm on ${formatCm(previous)} cm last time`}
+              </Text>
+            ) : (
+              <Text style={type.caption}>First measurement for this plant.</Text>
+            )}
+
+            {mode === 'ruler' ? (
+              <View style={[styles.status, isPlumb && styles.statusGood]} pointerEvents="none">
+                <Ionicons
+                  name={!tilt.available ? 'information-circle-outline' : isPlumb ? 'checkmark-circle' : 'warning-outline'}
+                  size={16}
+                  color={!tilt.available ? color.textTertiary : isPlumb ? color.brandDeep : color.sunText}
+                />
+                <Text style={[type.caption, { flex: 1 }]}>
+                  {!tilt.available
+                    ? 'Stand the phone on the soil, then touch the screen level with the top of the plant.'
+                    : isPlumb
+                      ? 'Upright. Touch the screen level with the top of the plant.'
+                      : 'Stand it straight up - leaning makes the plant measure taller than it is.'}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        </SafeAreaView>
+
+        {mode === 'tape' ? (
+          <SafeAreaView style={styles.tapeSheet}>
+            <ContentColumn style={{ gap: space.md }}>
+              <Text style={type.caption}>
+                Measure from the soil to the highest growing point - not the tip of a leaf that
+                happens to be leaning up.
+              </Text>
+              <Slider
+                style={{ width: '100%', height: 40 }}
+                minimumValue={0.5}
+                maximumValue={TAPE_MAX}
+                step={0.5}
+                value={tapeCm}
+                onValueChange={setTapeCm}
+                onSlidingComplete={() => haptics.selection()}
+                minimumTrackTintColor={color.brand}
+                maximumTrackTintColor={color.line}
+                thumbTintColor={color.brand}
+                accessibilityLabel="Height in centimetres"
+              />
+            </ContentColumn>
+          </SafeAreaView>
+        ) : (
+          <>
+            <View style={styles.soilEdge} pointerEvents="none">
+              <Text style={styles.soilLabel}>rest this edge on the soil</Text>
+            </View>
+
+            {atCeiling ? (
+              <View style={styles.ceilingNote} pointerEvents="box-none">
+                <Card padding={space.md}>
+                  <View style={{ gap: space.sm }}>
+                    <Text style={type.bodyStrong}>Taller than the phone</Text>
+                    <Text style={type.caption}>
+                      The line is at the top of the glass, so this one has outgrown it. Measure
+                      with a tape and type the number instead.
+                    </Text>
+                    <Button
+                      label="Switch to tape measure"
+                      tone="quiet"
+                      compact
+                      onPress={() => { setTapeCm(Math.max(Math.round(ceiling), 1)); setMode('tape'); }}
+                    />
+                  </View>
+                </Card>
+              </View>
+            ) : null}
+
+            <Pressable
+              onPress={() => setCalibrating(true)}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.calibrate, pressed && { opacity: 0.6 }]}
+            >
+              <Ionicons name="options-outline" size={14} color={color.brandDeep} />
+              <Text style={styles.calibrateLabel}>
+                {scale.calibrated ? 'Recalibrate' : `Reaches ${formatCm(ceiling)} cm · check accuracy`}
+              </Text>
+            </Pressable>
+          </>
+        )}
+
+        <CalibrateModal
+          visible={calibrating}
+          scale={scale}
+          onSave={(next) => { setScale(next); saveScale(next); }}
+          onClose={() => setCalibrating(false)}
+        />
+      </View>
     </Modal>
   );
 }
 
-const clamp = (value: number, low: number, high: number) => Math.min(Math.max(value, low), high);
-const formatCm = (value: number) => (value >= 100 ? Math.round(value).toString() : value.toFixed(1));
-
-/// A bar you drag from the bottom up. Its height in points is the only thing the
-/// measurement needs. The handle is a 44pt target; screen readers can nudge it.
-function DragBar({ span, setSpan, tint, tintText, caption, detail }: {
-  span: number;
-  setSpan: (value: number) => void;
-  tint: string;
-  tintText: string;
-  caption: string;
-  detail?: string;
+/// The full-bleed ruler. Zero is the bottom of the glass; the case below it is added on
+/// afterwards from the calibration.
+function Ruler({ scale, trackHeight, onTrackHeight, markFromBottom, onMark, ceiling }: {
+  scale: ScreenScale;
+  trackHeight: number;
+  onTrackHeight: (value: number) => void;
+  markFromBottom: number;
+  onMark: (value: number) => void;
+  ceiling: number;
 }) {
-  // The pan responder is created once, so it reads the live value through a ref
-  // rather than closing over a stale `span`.
-  const spanRef = useRef(span);
-  spanRef.current = span;
-  const setSpanRef = useRef(setSpan);
-  setSpanRef.current = setSpan;
-  const startSpan = useRef(span);
-  const [dragging, setDragging] = useState(false);
+  const top = useRef(0);
+  const container = useRef<View>(null);
+  const heightRef = useRef(trackHeight);
+  heightRef.current = trackHeight;
+  const onMarkRef = useRef(onMark);
+  onMarkRef.current = onMark;
+  const lastCm = useRef(-1);
+  const perCm = useRef(scale.pointsPerCm);
+  perCm.current = scale.pointsPerCm;
 
+  const set = (pageY: number) => {
+    const next = clamp(heightRef.current - (pageY - top.current), 0, heightRef.current);
+    onMarkRef.current(next);
+    // A tick at every centimetre, because you cannot read the number closely while the
+    // phone is standing in the soil and your eye is on the plant.
+    const cm = Math.round(next / perCm.current);
+    if (cm !== lastCm.current) {
+      lastCm.current = cm;
+      haptics.selection();
+    }
+  };
+
+  // The whole surface is the control, so there is nothing to aim at.
   const responder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: () => {
-        startSpan.current = spanRef.current;
-        setDragging(true);
-      },
-      onPanResponderMove: (_, gesture) => {
-        setSpanRef.current(clamp(startSpan.current - gesture.dy, MIN_SPAN, MAX_SPAN));
-      },
-      onPanResponderRelease: () => {
-        setDragging(false);
-        haptics.selection();
-      },
-      onPanResponderTerminate: () => setDragging(false),
+      onPanResponderGrant: (event) => set(event.nativeEvent.pageY),
+      onPanResponderMove: (event) => set(event.nativeEvent.pageY),
+      onPanResponderRelease: () => haptics.tap(),
     })
   ).current;
 
+  const onLayout = (event: LayoutChangeEvent) => {
+    onTrackHeight(event.nativeEvent.layout.height);
+    container.current?.measureInWindow((_x, y) => { top.current = y; });
+  };
+
+  const ticks = useMemo(() => {
+    const out: { cm: number; y: number; major: boolean }[] = [];
+    if (!trackHeight) return out;
+    for (let cm = 1; cm <= Math.floor(ceiling); cm++) {
+      const y = (cm - scale.bezelCm) * scale.pointsPerCm;
+      if (y < 0 || y > trackHeight) continue;
+      out.push({ cm, y, major: cm % 5 === 0 });
+    }
+    return out;
+  }, [trackHeight, ceiling, scale.pointsPerCm, scale.bezelCm]);
+
   return (
     <View
-      style={styles.barColumn}
-      accessibilityRole="adjustable"
-      accessibilityLabel={`${caption} bar`}
-      accessibilityValue={{ min: MIN_SPAN, max: MAX_SPAN, now: Math.round(span) }}
-      accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
-      onAccessibilityAction={(event) => {
-        const delta = event.nativeEvent.actionName === 'increment' ? STEP : -STEP;
-        setSpan(clamp(span + delta, MIN_SPAN, MAX_SPAN));
-      }}
+      ref={container}
+      style={StyleSheet.absoluteFill}
+      onLayout={onLayout}
+      accessibilityLabel="Plant height ruler"
+      {...responder.panHandlers}
     >
-      <View style={styles.barTrack} {...responder.panHandlers}>
-        <View style={[styles.bar, { height: span, backgroundColor: tint + '33', borderColor: tint + '66' }]} />
-        <View style={[styles.handleHit, { bottom: span - size.tap / 2 }]}>
-          <View style={[styles.handle, { backgroundColor: tint }, dragging && styles.handleActive]}>
-            <Ionicons name="reorder-two" size={16} color="#FFF" />
-          </View>
+      <View style={[styles.fill, { height: markFromBottom }]} pointerEvents="none" />
+
+      {ticks.map((tick) => (
+        <View key={tick.cm} style={[styles.tick, { bottom: tick.y }]} pointerEvents="none">
+          <View style={[styles.tickLine, tick.major && styles.tickLineMajor]} />
+          {tick.major ? <Text style={[styles.tickLabel, tabular]}>{tick.cm}</Text> : null}
+          <View style={{ flex: 1 }} />
+          {tick.major ? <Text style={[styles.tickLabel, tabular]}>{tick.cm}</Text> : null}
+          <View style={[styles.tickLine, tick.major && styles.tickLineMajor]} />
+        </View>
+      ))}
+
+      <View style={[styles.mark, { bottom: markFromBottom }]} pointerEvents="none">
+        <View style={styles.markArrow}>
+          <Ionicons name="caret-forward" size={18} color={color.brand} />
+        </View>
+        <View style={styles.markLine} />
+        <View style={[styles.markArrow, { transform: [{ scaleX: -1 }] }]}>
+          <Ionicons name="caret-forward" size={18} color={color.brand} />
         </View>
       </View>
-      <Text style={[type.captionStrong, { color: tintText }]}>{caption}</Text>
-      {detail ? <Text style={[type.caption, tabular]}>{detail}</Text> : null}
     </View>
   );
 }
 
+function ModeTab({ label, icon, on, onPress }: {
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  on: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="radio"
+      accessibilityState={{ selected: on }}
+      accessibilityLabel={label}
+      style={({ pressed }) => [styles.modeTab, on && styles.modeTabOn, pressed && !on && { opacity: 0.7 }]}
+    >
+      <Ionicons name={icon} size={15} color={on ? color.brandDeep : color.textSecondary} />
+      <Text style={[styles.modeLabel, on && styles.modeLabelOn]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function NudgeButton({ label, onPress }: { label: string; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${label} centimetres`}
+      hitSlop={4}
+      style={({ pressed }) => [styles.nudge, pressed && { backgroundColor: color.surfacePressed }]}
+    >
+      <Text style={styles.nudgeLabel}>{label}</Text>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
-  scroll: { padding: size.gutter, paddingBottom: space.xxl },
-  footer: {
-    paddingHorizontal: size.gutter,
-    paddingVertical: space.md,
-    borderTopWidth: 1,
-    borderTopColor: color.line,
-    backgroundColor: color.surface,
-  },
-  levelRing: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    borderWidth: 2,
-    borderColor: color.brandPale,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  levelRingOff: { borderStyle: 'dashed', borderColor: color.line },
-  bubble: { width: 16, height: 16, borderRadius: 8 },
-  segment: {
+  root: { flex: 1, backgroundColor: color.canvas },
+  overlay: { position: 'absolute', top: 0, left: 0, right: 0 },
+  bar: {
     flexDirection: 'row',
-    backgroundColor: color.surfaceSunken,
-    borderRadius: radius.sm,
-    padding: 3,
-    gap: 2,
-  },
-  segmentItem: {
-    flex: 1,
-    minHeight: size.tap,
     alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.xs + 1,
-    gap: 1,
+    gap: space.md,
+    paddingHorizontal: size.gutter,
+    paddingTop: space.sm,
   },
-  segmentActive: { backgroundColor: color.surface },
-  segmentLabel: { fontSize: 14, fontWeight: '500', color: color.textSecondary },
-  segmentLabelActive: { color: color.brandDeep, fontWeight: '700' },
-  segmentSub: { fontSize: 11, lineHeight: 13, color: color.textTertiary },
-  bars: { flexDirection: 'row', alignItems: 'flex-end', gap: space.lg },
-  barColumn: { alignItems: 'center', gap: space.xs, width: 72 },
-  barTrack: { height: MAX_SPAN + size.tap / 2, width: 72, justifyContent: 'flex-end', alignItems: 'center' },
-  bar: { width: 40, borderRadius: radius.xs, borderWidth: 1 },
-  handleHit: {
-    position: 'absolute',
+  close: {
     width: size.tap,
     height: size.tap,
+    borderRadius: size.tap / 2,
+    backgroundColor: color.surfaceSunken,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  handle: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+  title: { flex: 1, textAlign: 'center', fontSize: 16, fontWeight: '700', color: color.text },
+  save: {
+    minHeight: size.tap - 6,
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+    borderRadius: radius.pill,
+    backgroundColor: color.brand,
+  },
+  saveText: { fontSize: 15, fontWeight: '700', color: color.textOnBrand },
+
+  panel: {
+    margin: size.gutter,
+    padding: space.md,
+    borderRadius: radius.md,
+    backgroundColor: color.surface + 'F2',
+    borderWidth: 1,
+    borderColor: color.line,
+    gap: space.sm,
+  },
+  modeRow: { flexDirection: 'row', backgroundColor: color.surfaceSunken, borderRadius: radius.sm, padding: 3, gap: 2 },
+  modeTab: {
+    flex: 1,
+    flexDirection: 'row',
+    minHeight: size.tap - 8,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#FFF',
+    gap: 6,
+    borderRadius: radius.xs,
   },
-  handleActive: { transform: [{ scale: 1.15 }] },
-  result: { flex: 1, gap: space.xs, paddingBottom: space.xxl, alignSelf: 'flex-end' },
-  resultValue: { fontSize: 30, lineHeight: 36, fontWeight: '700', color: color.brandDeep },
+  modeTabOn: { backgroundColor: color.surface },
+  modeLabel: { fontSize: 13, fontWeight: '600', color: color.textSecondary },
+  modeLabelOn: { color: color.brandDeep, fontWeight: '700' },
+
+  readout: { flexDirection: 'row', alignItems: 'flex-end', gap: 4 },
+  value: { fontSize: 46, lineHeight: 50, fontWeight: '800', color: color.brandDeep },
+  unit: { fontSize: 15, fontWeight: '700', color: color.textSecondary, paddingBottom: 6 },
+  nudges: { flexDirection: 'row', gap: 4 },
+  nudge: {
+    minWidth: 42,
+    minHeight: size.tap - 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+    borderRadius: radius.xs,
+    backgroundColor: color.surfaceSunken,
+  },
+  nudgeLabel: { fontSize: 14, fontWeight: '700', color: color.text },
+
+  status: { flexDirection: 'row', alignItems: 'center', gap: space.sm, padding: space.sm, borderRadius: radius.sm, backgroundColor: color.sunTint },
+  statusGood: { backgroundColor: color.brandTint },
+
+  fill: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: color.brandTint + '66' },
+  tick: { position: 'absolute', left: 0, right: 0, flexDirection: 'row', alignItems: 'center', gap: 4 },
+  tickLine: { width: 10, height: 1, backgroundColor: color.line },
+  tickLineMajor: { width: 22, height: 1.5, backgroundColor: color.textTertiary },
+  tickLabel: { fontSize: 11, lineHeight: 13, color: color.textTertiary },
+
+  mark: { position: 'absolute', left: 0, right: 0, height: 20, marginBottom: -10, flexDirection: 'row', alignItems: 'center' },
+  markLine: { flex: 1, height: 2.5, backgroundColor: color.brand },
+  markArrow: { width: 18, alignItems: 'center' },
+
+  soilEdge: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 22,
+    backgroundColor: '#8A7561',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  soilLabel: { fontSize: 10, fontWeight: '700', color: '#FFF', opacity: 0.9, letterSpacing: 0.3 },
+
+  calibrate: {
+    position: 'absolute',
+    bottom: 34,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    minHeight: size.tap - 10,
+    borderRadius: radius.pill,
+    backgroundColor: color.surface + 'E6',
+  },
+  calibrateLabel: { fontSize: 12, fontWeight: '600', color: color.brandDeep },
+
+  ceilingNote: { position: 'absolute', left: size.gutter, right: size.gutter, bottom: 86 },
+  tapeSheet: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: size.gutter },
 });

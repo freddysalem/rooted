@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { memo, useCallback, useState } from 'react';
+import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Card, Chip, ContentColumn, Pill, SectionHeader } from '../components/ui';
 import { PlantSprite, seedFromString } from '../components/PlantSprite';
 import { TraitChips } from '../components/TraitChips';
+import { Community } from '../components/Community';
 import { useGarden } from '../state/GardenContext';
-import { Species, harvestableIn, lightLabel, sowableIn, speciesById } from '../models/species';
+import { Species, harvestableIn, lightLabel, sowableIn, speciesById, lookOf } from '../models/species';
 import { getSpecies, progressOf, stageOf } from '../models/planting';
 import { REGIONS, REGION_ORDER } from '../models/regions';
 import { DishMatch, dishSpeciesNames, dishTagLabel, dishesForGarden, starterCombos } from '../models/dishes';
@@ -151,7 +152,7 @@ export function DiscoverScreen() {
                   style={({ pressed }) => [styles.riskRow, pressed && { backgroundColor: color.surfacePressed }]}
                 >
                   <View style={styles.riskSprite}>
-                    <PlantSprite family={species.family} progress={0.85} seed={seedFromString(species.id)} height={44} />
+                    <PlantSprite look={lookOf(species)} progress={0.85} seed={seedFromString(species.id)} height={44} />
                   </View>
                   <View style={{ flex: 1, gap: 2 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm, flexWrap: 'wrap' }}>
@@ -192,6 +193,8 @@ export function DiscoverScreen() {
                 ))}
           </View>
         </Card>
+
+        <Community region={garden.region} month={month} />
 
         <Card>
           <View style={{ gap: space.md }}>
@@ -253,32 +256,45 @@ function Carousel({ title, subtitle, species, onChoose }: {
   return (
     <Card>
       <SectionHeader title={title} subtitle={subtitle} />
-      <ScrollView
+      {/* Windowed rather than a plain row: each tile draws a whole plant, and building
+          ten of them off-screen was part of why this tab took a moment to open. */}
+      <FlatList
         horizontal
+        data={species}
+        keyExtractor={(item) => item.id}
         showsHorizontalScrollIndicator={false}
         style={styles.carousel}
         contentContainerStyle={styles.carouselContent}
-      >
-        {species.map((item) => (
-          <Pressable
-            key={item.id}
-            onPress={() => onChoose(item)}
-            accessibilityRole="button"
-            accessibilityLabel={`Plant ${item.name}. ${lightLabel[item.light]}`}
-            style={({ pressed }) => [styles.tileWrap, pressed && { transform: [{ scale: 0.96 }] }]}
-          >
-            <View style={styles.tile}>
-              <PlantSprite family={item.family} progress={0.9} seed={seedFromString(item.id)} height={78} />
-            </View>
-            <Text style={type.bodyStrong} numberOfLines={1}>{item.name}</Text>
-            <Text style={type.caption} numberOfLines={1}>{lightLabel[item.light]}</Text>
-            <TraitChips traits={item.traits} max={2} compact />
-          </Pressable>
-        ))}
-      </ScrollView>
+        initialNumToRender={3}
+        maxToRenderPerBatch={3}
+        windowSize={3}
+        renderItem={({ item }) => <CarouselTile species={item} onChoose={onChoose} />}
+      />
     </Card>
   );
 }
+
+const CarouselTile = memo(function CarouselTile({ species, onChoose }: {
+  species: Species;
+  onChoose: (species: Species) => void;
+}) {
+  const press = useCallback(() => onChoose(species), [onChoose, species]);
+  return (
+    <Pressable
+      onPress={press}
+      accessibilityRole="button"
+      accessibilityLabel={`Plant ${species.name}. ${lightLabel[species.light]}`}
+      style={({ pressed }) => [styles.tileWrap, pressed && { transform: [{ scale: 0.96 }] }]}
+    >
+      <View style={styles.tile}>
+        <PlantSprite look={lookOf(species)} progress={0.9} seed={seedFromString(species.id)} height={78} />
+      </View>
+      <Text style={type.bodyStrong} numberOfLines={1}>{species.name}</Text>
+      <Text style={type.caption} numberOfLines={1}>{lightLabel[species.light]}</Text>
+      <TraitChips traits={species.traits} max={2} compact />
+    </Pressable>
+  );
+});
 
 const styles = StyleSheet.create({
   scroll: { padding: size.gutter, paddingBottom: space.xxxl },

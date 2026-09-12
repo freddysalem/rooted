@@ -161,7 +161,14 @@ export function IconButton({ icon, onPress, label, tone = 'surface', size: diame
 }
 
 /// The bar across the top of a sheet. Title genuinely centred; both actions 44pt.
-export function SheetBar({ title, onCancel, cancelLabel = 'Cancel', action, onAction, actionDisabled }: {
+/// The bar across the top of a sheet.
+///
+/// The dismiss is a round X rather than the word "Cancel". It is a bigger target, it sits
+/// where a thumb already is, and it does not read as "undo everything" on a sheet that has
+/// nothing to undo yet. The confirming action keeps its words - that one is worth reading
+/// before you press it - but it is a filled pill now, so which of the two is the real
+/// action is obvious at a glance instead of both being green text of the same weight.
+export function SheetBar({ title, onCancel, cancelLabel = 'Close', action, onAction, actionDisabled }: {
   title: string;
   onCancel?: () => void;
   cancelLabel?: string;
@@ -176,14 +183,17 @@ export function SheetBar({ title, onCancel, cancelLabel = 'Cancel', action, onAc
           <Pressable
             onPress={onCancel}
             accessibilityRole="button"
-            hitSlop={8}
-            style={({ pressed }) => [styles.sheetAction, { opacity: pressed ? 0.6 : 1 }]}
+            accessibilityLabel={cancelLabel}
+            hitSlop={10}
+            style={({ pressed }) => [styles.sheetClose, pressed && { backgroundColor: color.surfacePressed }]}
           >
-            <Text style={styles.sheetActionText}>{cancelLabel}</Text>
+            <Ionicons name="close" size={20} color={color.textSecondary} />
           </Pressable>
         ) : null}
       </View>
+
       <Text numberOfLines={1} style={[type.bodyStrong, styles.sheetTitle]}>{title}</Text>
+
       <View style={[styles.sheetSide, { alignItems: 'flex-end' }]}>
         {action && onAction ? (
           <Pressable
@@ -192,9 +202,13 @@ export function SheetBar({ title, onCancel, cancelLabel = 'Cancel', action, onAc
             accessibilityRole="button"
             accessibilityState={{ disabled: !!actionDisabled }}
             hitSlop={8}
-            style={({ pressed }) => [styles.sheetAction, { opacity: pressed ? 0.6 : 1 }]}
+            style={({ pressed }) => [
+              styles.sheetConfirm,
+              actionDisabled && styles.sheetConfirmOff,
+              pressed && !actionDisabled && { opacity: 0.85 },
+            ]}
           >
-            <Text style={[styles.sheetActionText, styles.sheetPrimary, actionDisabled && { color: color.textDisabled }]}>
+            <Text style={[styles.sheetConfirmText, actionDisabled && { color: color.textDisabled }]}>
               {action}
             </Text>
           </Pressable>
@@ -326,9 +340,23 @@ const styles = StyleSheet.create({
   },
   sheetSide: { width: 84, justifyContent: 'center' },
   sheetTitle: { flex: 1, textAlign: 'center', fontSize: 16 },
-  sheetAction: { height: size.tap, justifyContent: 'center', paddingHorizontal: space.sm },
-  sheetActionText: { fontSize: 16, color: color.brandDeep },
-  sheetPrimary: { fontWeight: '700' },
+  sheetClose: {
+    width: size.tap,
+    height: size.tap,
+    borderRadius: size.tap / 2,
+    backgroundColor: color.surfaceSunken,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sheetConfirm: {
+    minHeight: size.tap - 8,
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    borderRadius: radius.pill,
+    backgroundColor: color.brand,
+  },
+  sheetConfirmOff: { backgroundColor: color.surfaceSunken },
+  sheetConfirmText: { fontSize: 15, fontWeight: '700', color: color.textOnBrand },
   inputWrap: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -15,8 +15,13 @@ the same Wi-Fi. If they aren't, use `npx expo start --tunnel` instead.
 The explicit `--port 8100` matters: this machine already runs other Expo projects on 8081
 and 8090, and without a free port the CLI stops at a prompt instead of showing a QR code.
 
-**Expo Go must match.** This project is on SDK 54; a mismatched Expo Go refuses it with
+**Expo Go must match.** This project is on SDK 57; a mismatched Expo Go refuses it with
 "Project is incompatible with this version of Expo Go". Update it from the App Store.
+
+**You must be signed in on both ends.** Since SDK 57, Expo Go on iOS only opens a dev
+server when the phone and the terminal are signed in to the *same* Expo account —
+`npx expo login` here, avatar icon in Expo Go there. Signed out on either side fails the
+same way. To demo on other people's phones, see [DEMO.md](DEMO.md).
 
 ## What's here
 

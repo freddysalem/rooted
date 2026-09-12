@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Modal, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Line, Polyline } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -8,11 +8,12 @@ import {
 import { PlantSprite } from '../components/PlantSprite';
 import { TraitChips } from '../components/TraitChips';
 import { useGarden } from '../state/GardenContext';
+import { CONTAINERS, DEFAULT_CONTAINER, containerLabel, inEverydayTerms } from '../services/water';
 import {
   Planting, daysBetween, daysSincePlanting, daysUntilHarvest, getSpecies, heightGain,
   latestHeight, progressOf, seedOf, sortedHeights, stageLabel, stageOf,
 } from '../models/planting';
-import { lightLabel } from '../models/species';
+import { lightLabel, lookOf } from '../models/species';
 import { color, radius, size, space, tabular, type } from '../theme';
 import * as haptics from '../services/haptics';
 import { confirmDestructive } from '../services/confirm';
@@ -73,6 +74,7 @@ export function PlantDetailModal({ planting, onClose }: {
   const gain = heightGain(planting);
   const latest = latestHeight(planting);
   const thirsty = garden.needsWater(planting);
+  const advice = garden.waterAdvice(planting);
   const ready = stageOf(planting) === 'ready';
 
   const lastWateredText = (() => {
@@ -127,7 +129,7 @@ export function PlantDetailModal({ planting, onClose }: {
               <View style={{ alignItems: 'center', gap: space.md }}>
                 <View style={styles.hero} accessibilityLabel={`${planting.nickname}, drawn at ${Math.round(progress * 100)} percent grown`}>
                   <PlantSprite
-                    family={species.family}
+                    look={lookOf(species)}
                     progress={progress}
                     seed={seedOf(planting)}
                     height={120}
@@ -163,6 +165,25 @@ export function PlantDetailModal({ planting, onClose }: {
             <Card>
               <View style={{ gap: space.md }}>
                 <SectionHeader title="Water" subtitle={garden.wateringAdvice(planting)} />
+
+                {/* How much, not just when. The amount comes from how much soil this one
+                    has to wet, which is why the app asked where it was going in. */}
+                <View style={styles.amount}>
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text style={styles.amountValue}>
+                      {advice.skip ? 'Nothing today' : advice.amount}
+                    </Text>
+                    <Text style={type.caption}>
+                      {advice.because || `${inEverydayTerms(advice.millilitres)} · ${containerLabel(planting.container)}`}
+                    </Text>
+                  </View>
+                  <Ionicons
+                    name={advice.skip ? 'rainy-outline' : 'water'}
+                    size={26}
+                    color={advice.skip ? color.textTertiary : color.waterText}
+                  />
+                </View>
+
                 <Button
                   label={justWatered ? 'Watered' : 'Water now'}
                   icon={justWatered ? 'checkmark' : 'water'}
@@ -170,9 +191,38 @@ export function PlantDetailModal({ planting, onClose }: {
                   onPress={water}
                   disabled={justWatered}
                 />
+
                 <View style={styles.spread}>
                   <Text style={type.caption}>{lastWateredText}</Text>
                   <Text style={[type.caption, tabular]}>Every {garden.wateringInterval(planting)} days</Text>
+                </View>
+
+                <View style={styles.containerRow}>
+                  {CONTAINERS.map((option) => {
+                    const on = (planting.container?.litres ?? DEFAULT_CONTAINER.litres) === option.litres
+                      && (planting.container?.kind ?? DEFAULT_CONTAINER.kind) === option.kind;
+                    return (
+                      <Pressable
+                        key={option.id}
+                        onPress={() => {
+                          haptics.selection();
+                          garden.setContainer({ kind: option.kind, litres: option.litres }, planting);
+                        }}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected: on }}
+                        accessibilityLabel={`${option.label}, ${option.detail}`}
+                        style={({ pressed }) => [
+                          styles.containerChip,
+                          on && styles.containerChipOn,
+                          pressed && !on && { backgroundColor: color.surfacePressed },
+                        ]}
+                      >
+                        <Text style={[styles.containerLabel, on && { color: color.textOnBrand }]}>
+                          {option.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
                 </View>
               </View>
             </Card>
@@ -313,6 +363,24 @@ function HeightChart({ values }: { values: number[] }) {
 }
 
 const styles = StyleSheet.create({
+  amount: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    padding: space.md,
+    borderRadius: radius.sm,
+    backgroundColor: color.waterTint,
+  },
+  amountValue: { fontSize: 24, lineHeight: 29, fontWeight: '800', color: color.waterText },
+  containerRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  containerChip: {
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    borderRadius: radius.pill,
+    backgroundColor: color.surfaceSunken,
+  },
+  containerChipOn: { backgroundColor: color.brand },
+  containerLabel: { fontSize: 13, fontWeight: '600', color: color.textSecondary },
   scroll: { padding: size.gutter, paddingBottom: space.xxxl },
   hero: {
     width: '100%',

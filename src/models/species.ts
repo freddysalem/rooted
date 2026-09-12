@@ -681,6 +681,96 @@ export const SPECIES: Species[] = [
     waterEveryDays: 4, daysToHarvest: 120, matureHeightCm: 100, difficulty: 2,
     sowMonths: [3,4,10], harvestMonths: [7,8,1,2],
     tip: 'Sow into moist soil at the start of the rains. Harvest when the heads turn brown, then dry them well.' },
+  { id: 'slenderleaf', name: 'Slenderleaf (mitoo)', family: 'legume', category: 'green', light: 'fullSun',
+    waterEveryDays: 3, daysToHarvest: 50, matureHeightCm: 90, difficulty: 1,
+    sowMonths: [3,4,10,11], harvestMonths: [5,6,7,12,1],
+    tip: 'Pinch the growing tips out early and it bushes instead of bolting. Bitter on purpose - cook it with a milder green.',
+    traits: ['highProtein', 'cutAndComeAgain', 'droughtTolerant'] },
+  { id: 'ethiopiankale', name: 'Ethiopian kale (kanzira)', family: 'cole', category: 'green', light: 'fullSun',
+    waterEveryDays: 3, daysToHarvest: 45, matureHeightCm: 70, difficulty: 1,
+    sowMonths: [3,4,9,10,11], harvestMonths: [5,6,7,12,1,2],
+    tip: 'Faster and softer than sukuma wiki, and it keeps going through dry spells that stop collards.',
+    traits: ['highVitaminA', 'cutAndComeAgain', 'quickReturn', 'containerFriendly'] },
+  { id: 'moringa', name: 'Moringa (mrongo)', family: 'tree', category: 'green', light: 'fullSun',
+    waterEveryDays: 5, daysToHarvest: 240, matureHeightCm: 300, difficulty: 1,
+    sowMonths: [3,4,10,11], harvestMonths: [8,9,10,11,12,1,2],
+    tip: 'Cut it back hard to keep the leaves in reach. Left alone it becomes a tree and the harvest goes over your head.',
+    traits: ['highProtein', 'highIron', 'highVitaminC', 'droughtTolerant'] },
+  { id: 'greengram', name: 'Green gram (ndengu)', family: 'legume', category: 'legume', light: 'fullSun',
+    waterEveryDays: 4, daysToHarvest: 70, matureHeightCm: 60, difficulty: 1,
+    sowMonths: [3,4,10,11], harvestMonths: [6,7,1,2],
+    tip: 'Ready in about ten weeks on very little water. Pick the pods as they blacken rather than all at once.',
+    traits: ['highProtein', 'droughtTolerant', 'storesWell', 'quickReturn'] },
+  { id: 'lablab', name: 'Lablab (njahi)', family: 'legume', category: 'legume', light: 'fullSun',
+    waterEveryDays: 4, daysToHarvest: 120, matureHeightCm: 200, difficulty: 1,
+    sowMonths: [3,4,10,11], harvestMonths: [8,9,2,3],
+    tip: 'Give it something to climb. It fixes nitrogen, so whatever follows it in that soil does better.',
+    traits: ['highProtein', 'droughtTolerant', 'storesWell'] },
+  { id: 'chickpea', name: 'Chickpea', family: 'legume', category: 'legume', light: 'fullSun',
+    waterEveryDays: 5, daysToHarvest: 100, matureHeightCm: 50, difficulty: 2,
+    sowMonths: [3,4,10], harvestMonths: [7,8,1,2],
+    tip: 'Hates wet feet more than it hates drought. Sow on a ridge if your soil holds water.',
+    traits: ['highProtein', 'droughtTolerant', 'storesWell'] },
+  { id: 'sorghum', name: 'Sorghum (mtama)', family: 'grain', category: 'grain', light: 'fullSun',
+    waterEveryDays: 5, daysToHarvest: 120, matureHeightCm: 200, difficulty: 1,
+    sowMonths: [3,4,10], harvestMonths: [7,8,1,2],
+    tip: 'Stands up to heat that flattens maize. Net the heads as they colour or the birds will beat you to them.',
+    traits: ['calorieDense', 'droughtTolerant', 'storesWell'] },
+  { id: 'pearlmillet', name: 'Pearl millet (mwere)', family: 'grain', category: 'grain', light: 'fullSun',
+    waterEveryDays: 6, daysToHarvest: 100, matureHeightCm: 200, difficulty: 1,
+    sowMonths: [3,4,10], harvestMonths: [7,8,1,2],
+    tip: 'The last cereal standing when the rains fail. Thin the seedlings hard - crowded plants give tiny heads.',
+    traits: ['calorieDense', 'droughtTolerant', 'storesWell'] },
+  { id: 'sesame', name: 'Sesame (simsim)', family: 'herb', category: 'other', light: 'fullSun',
+    waterEveryDays: 5, daysToHarvest: 100, matureHeightCm: 120, difficulty: 2,
+    sowMonths: [3,4,10], harvestMonths: [7,8,1,2],
+    tip: 'Cut the stems when the lowest pods split and hang them over a sheet - the rest open as they dry.',
+    traits: ['highProtein', 'droughtTolerant', 'storesWell'] },
+  { id: 'cassava', name: 'Cassava (mihogo)', family: 'root', category: 'root', light: 'fullSun',
+    waterEveryDays: 7, daysToHarvest: 300, matureHeightCm: 250, difficulty: 1,
+    sowMonths: [3,4,10,11], harvestMonths: [1,2,3,10,11,12],
+    tip: 'Grown from stem cuttings pushed in at an angle. Leave the roots in the ground until you need them - it stores itself.',
+    traits: ['calorieDense', 'droughtTolerant', 'storesWell'] },
+  { id: 'arrowroot', name: 'Arrowroot (nduma)', family: 'root', category: 'root', light: 'partialShade',
+    waterEveryDays: 1, daysToHarvest: 240, matureHeightCm: 120, difficulty: 2,
+    sowMonths: [3,4,10,11], harvestMonths: [11,12,1,2],
+    tip: 'The one crop that wants a wet corner. Plant it where water collects and it will thank you.',
+    traits: ['calorieDense', 'shadeTolerant', 'storesWell'] },
+  { id: 'yam', name: 'Yam', family: 'root', category: 'root', light: 'partialShade',
+    waterEveryDays: 3, daysToHarvest: 270, matureHeightCm: 250, difficulty: 2,
+    sowMonths: [3,4], harvestMonths: [11,12,1],
+    tip: 'Give the vine a strong stake early. The tuber grows deep, so loosen the soil further down than feels necessary.',
+    traits: ['calorieDense', 'storesWell'] },
+  { id: 'banana', name: 'Banana (ndizi)', family: 'tree', category: 'fruit', light: 'fullSun',
+    waterEveryDays: 2, daysToHarvest: 330, matureHeightCm: 350, difficulty: 2,
+    sowMonths: [3,4,10,11], harvestMonths: [1,2,3,4,5,6,7,8,9,10,11,12],
+    tip: 'Each stem fruits once and then dies - cut it out and let one sucker take its place.',
+    traits: ['calorieDense', 'versatile'] },
+  { id: 'mango', name: 'Mango (embe)', family: 'tree', category: 'fruit', light: 'fullSun',
+    waterEveryDays: 5, daysToHarvest: 1095, matureHeightCm: 400, difficulty: 2,
+    sowMonths: [3,4,10,11], harvestMonths: [11,12,1,2,3],
+    tip: 'A grafted seedling fruits in three years; one grown from a stone can take ten.',
+    traits: ['highVitaminA', 'highVitaminC', 'droughtTolerant'] },
+  { id: 'papaya', name: 'Papaya (papai)', family: 'tree', category: 'fruit', light: 'fullSun',
+    waterEveryDays: 3, daysToHarvest: 300, matureHeightCm: 300, difficulty: 1,
+    sowMonths: [3,4,10,11], harvestMonths: [1,2,3,4,5,6,7,8,9,10,11,12],
+    tip: 'Plant three or four and keep the ones that fruit - you cannot tell male from female until they flower.',
+    traits: ['highVitaminA', 'highVitaminC', 'quickReturn'] },
+  { id: 'passionfruit', name: 'Passion fruit', family: 'vine', category: 'fruit', light: 'fullSun',
+    waterEveryDays: 3, daysToHarvest: 330, matureHeightCm: 300, difficulty: 2,
+    sowMonths: [3,4,10,11], harvestMonths: [6,7,8,12,1,2],
+    tip: 'Needs a fence or a wire to run along. The fruit is ripe when it drops - pick it off the ground.',
+    traits: ['highVitaminC', 'pollinator'] },
+  { id: 'guava', name: 'Guava', family: 'tree', category: 'fruit', light: 'fullSun',
+    waterEveryDays: 5, daysToHarvest: 730, matureHeightCm: 350, difficulty: 1,
+    sowMonths: [3,4,10,11], harvestMonths: [2,3,4,8,9,10],
+    tip: 'Almost impossible to kill once established. Prune it low so you can reach the fruit.',
+    traits: ['highVitaminC', 'droughtTolerant'] },
+  { id: 'pumpkinleaf', name: 'Pumpkin leaves (seveve)', family: 'vine', category: 'green', light: 'fullSun',
+    waterEveryDays: 3, daysToHarvest: 60, matureHeightCm: 40, difficulty: 1,
+    sowMonths: [3,4,10,11], harvestMonths: [5,6,7,12,1,2],
+    tip: 'Take the young shoot tips and the plant branches out. Two harvests from one plant - the leaves now, the pumpkin later.',
+    traits: ['highIron', 'highVitaminA', 'cutAndComeAgain'] },
   // --- British heritage crops worth bringing back ---
   { id: 'skirret', name: 'Skirret', family: 'root', category: 'root', light: 'partialShade',
     waterEveryDays: 3, daysToHarvest: 200, matureHeightCm: 100, difficulty: 2,
@@ -781,8 +871,325 @@ for (const species of SPECIES) {
   if (TRAITS[species.id]) species.traits = TRAITS[species.id];
 }
 
+
+// --- how each species is drawn --------------------------------------------
+
+/// Silhouettes the sprite knows how to draw. The form decides the arrangement; the leaf
+/// shape, colours and any fruit or flower make one species distinguishable from another
+/// inside it. Without this every leafy green was literally the same picture.
+export type PlantForm =
+  | 'root' | 'bulb' | 'grass' | 'rosette' | 'bushy'
+  | 'stalk' | 'climber' | 'vine' | 'cane' | 'tree' | 'leafy';
+
+export type LeafShape =
+  | 'oval' | 'round' | 'lobed' | 'serrated' | 'needle' | 'blade' | 'feathery' | 'heart';
+
+/// How a plant comes up out of the ground.
+///
+/// Real seedlings are not interchangeable, and this is the stage you stare at for the
+/// first fortnight after planting: a bean shoulders up two fat round cotyledons, maize
+/// sends a single blade straight up, an onion arches over in a hook and pulls its head
+/// out of the seed case afterwards. Drawing all of them as the same pair of ovals threw
+/// away the most recognisable moment in a plant's life.
+export type SproutKind =
+  /** Two round seed leaves - most dicots. */
+  | 'pair'
+  /** Two thick fleshy ones: beans, squashes, sunflowers. */
+  | 'fat'
+  /** A single grass spike: maize, sorghum, millet, cane. */
+  | 'blade'
+  /** The allium hook, still wearing the seed case. */
+  | 'loop'
+  /** A broad monocot strap: banana, ginger, arrowroot. */
+  | 'strap'
+  /** Thread-fine first leaves: carrot, dill, fennel. */
+  | 'thread'
+  /** Heart-shaped seed leaves - the cabbage family. */
+  | 'heart'
+  /** Fine and resinous: rosemary, thyme. */
+  | 'needle'
+  /** A woody shoot from a cutting or tuber rather than a seed. */
+  | 'shoot';
+
+export interface PlantLook {
+  form: PlantForm;
+  /** Filled in for every species at load; see `sproutFor`. */
+  sprout?: SproutKind;
+  leaf: LeafShape;
+  /** Main foliage colour. */
+  green: string;
+  /** Secondary foliage colour, for depth. Defaults to a lighter green. */
+  green2?: string;
+  /** Stem or stalk, where it is a feature - chard's yellow, rhubarb's red. */
+  stem?: string;
+  /** The visible shoulder of a root, or the heart of a head. */
+  crown?: { colour: string };
+  fruit?: {
+    colour: string;
+    shape: 'round' | 'oval' | 'long' | 'pod' | 'cluster' | 'cob' | 'head';
+    count: number;
+    /** As a fraction of the sprite's height. */
+    size: number;
+  };
+  flower?: { colour: string; centre: string; petals: number; size: number };
+}
+
+export const LOOKS: Record<string, PlantLook> = {
+  onion: { form: 'bulb', leaf: 'blade', green: '#6E9F5B', crown: { colour: '#E9E3D2' } },
+  garlic: { form: 'bulb', leaf: 'blade', green: '#7BA968', crown: { colour: '#F0EAE0' } },
+  chives: { form: 'grass', leaf: 'blade', green: '#4E8B57', flower: { colour: '#B47BC4', centre: '#8E5BA8', petals: 6, size: 0.5 } },
+  leek: { form: 'bulb', leaf: 'blade', green: '#5E9464', crown: { colour: '#EAF0E2' } },
+  shallot: { form: 'bulb', leaf: 'blade', green: '#6E9F5B', crown: { colour: '#C98F6E' } },
+  kale: { form: 'leafy', leaf: 'serrated', green: '#3F7A54', green2: '#5C9A6E' },
+  bokchoy: { form: 'rosette', leaf: 'oval', green: '#7FB86A', stem: '#EAF2E0' },
+  broccoli: { form: 'leafy', leaf: 'lobed', green: '#4C7F4E', fruit: { colour: '#3E6B3C', shape: 'head', count: 1, size: 0.2 } },
+  broccolirabe: { form: 'leafy', leaf: 'serrated', green: '#5A8F4E', flower: { colour: '#E8D14C', centre: '#C4A82C', petals: 5, size: 0.35 } },
+  brusselssprouts: { form: 'stalk', leaf: 'round', green: '#4F7F52', fruit: { colour: '#6FA05C', shape: 'cluster', count: 3, size: 0.14 } },
+  cabbage: { form: 'rosette', leaf: 'round', green: '#7FA86B', crown: { colour: '#A9C48E' } },
+  cauliflower: { form: 'rosette', leaf: 'lobed', green: '#6E9660', crown: { colour: '#F2EFDF' } },
+  collards: { form: 'leafy', leaf: 'oval', green: '#4E8657' },
+  kohlrabi: { form: 'leafy', leaf: 'oval', green: '#6E9F6B', crown: { colour: '#A8C48F' } },
+  sunflower: { form: 'stalk', leaf: 'heart', green: '#4E8B57', flower: { colour: '#E9C44C', centre: '#6E4826', petals: 12, size: 0.5 } },
+  agastache: { form: 'bushy', leaf: 'serrated', green: '#6E8F5E', flower: { colour: '#8E7BC4', centre: '#6E5BA8', petals: 6, size: 0.35 } },
+  alyssum: { form: 'bushy', leaf: 'oval', green: '#7FA86B', flower: { colour: '#FBFAF4', centre: '#E9C44C', petals: 5, size: 0.28 } },
+  amaranth: { form: 'stalk', leaf: 'oval', green: '#6E8B4E', flower: { colour: '#B4324F', centre: '#8E2440', petals: 7, size: 0.4 } },
+  beebalm: { form: 'bushy', leaf: 'serrated', green: '#5E8B57', flower: { colour: '#D9455F', centre: '#A82C44', petals: 8, size: 0.4 } },
+  blackeyedsusan: { form: 'bushy', leaf: 'oval', green: '#5E8B4E', flower: { colour: '#E9B32C', centre: '#4A3320', petals: 10, size: 0.4 } },
+  chamomile: { form: 'bushy', leaf: 'feathery', green: '#7FA86B', flower: { colour: '#FBFAF4', centre: '#E9C44C', petals: 9, size: 0.32 } },
+  cosmos: { form: 'bushy', leaf: 'feathery', green: '#6E9F6B', flower: { colour: '#E88BB4', centre: '#E9C44C', petals: 8, size: 0.4 } },
+  dahlia: { form: 'bushy', leaf: 'serrated', green: '#4E7B4E', flower: { colour: '#C4425F', centre: '#E9C44C', petals: 12, size: 0.45 } },
+  echinacea: { form: 'bushy', leaf: 'oval', green: '#5E8B57', flower: { colour: '#C97BA8', centre: '#B4622C', petals: 10, size: 0.42 } },
+  foxglove: { form: 'stalk', leaf: 'oval', green: '#5E8B57', flower: { colour: '#C47BB4', centre: '#F2E0EE', petals: 5, size: 0.35 } },
+  fuchsia: { form: 'bushy', leaf: 'oval', green: '#4E7B4E', flower: { colour: '#C4327B', centre: '#8E3AA8', petals: 6, size: 0.35 } },
+  gardenia: { form: 'bushy', leaf: 'oval', green: '#2F6B3C', flower: { colour: '#F7F3E6', centre: '#EDE4C8', petals: 8, size: 0.38 } },
+  hibiscus: { form: 'bushy', leaf: 'lobed', green: '#3F7A4E', flower: { colour: '#D9455F', centre: '#E9C44C', petals: 5, size: 0.45 } },
+  hydrangea: { form: 'bushy', leaf: 'oval', green: '#4E7B57', flower: { colour: '#7B9FD4', centre: '#B7C9E8', petals: 8, size: 0.45 } },
+  impatiens: { form: 'bushy', leaf: 'oval', green: '#5E8B5E', flower: { colour: '#E8607F', centre: '#F7E9BC', petals: 5, size: 0.3 } },
+  iris: { form: 'grass', leaf: 'blade', green: '#5E8B6B', flower: { colour: '#6E5BB4', centre: '#E9C44C', petals: 6, size: 0.4 } },
+  lilac: { form: 'tree', leaf: 'heart', green: '#5E8B5E', flower: { colour: '#B49BD4', centre: '#9E86C4', petals: 6, size: 0.3 } },
+  marigold: { form: 'bushy', leaf: 'feathery', green: '#4E7B4E', flower: { colour: '#E9902C', centre: '#C4622C', petals: 10, size: 0.34 } },
+  milkweed: { form: 'stalk', leaf: 'oval', green: '#6E8B5E', flower: { colour: '#E8A0B4', centre: '#C47B8E', petals: 6, size: 0.3 } },
+  nasturtium: { form: 'bushy', leaf: 'round', green: '#6EA85E', flower: { colour: '#E9702C', centre: '#E9C44C', petals: 5, size: 0.36 } },
+  rose: { form: 'cane', leaf: 'serrated', green: '#3F7A4E', flower: { colour: '#D14A5F', centre: '#E9C44C', petals: 8, size: 0.34 } },
+  snapdragon: { form: 'stalk', leaf: 'oval', green: '#5E8B57', flower: { colour: '#E86E8B', centre: '#F2D0DC', petals: 5, size: 0.3 } },
+  zinnia: { form: 'bushy', leaf: 'oval', green: '#5E9B5E', flower: { colour: '#E8562C', centre: '#E9C44C', petals: 10, size: 0.4 } },
+  strawberry: { form: 'rosette', leaf: 'serrated', green: '#4E8B57', fruit: { colour: '#D1344A', shape: 'round', count: 3, size: 0.11 } },
+  apple: { form: 'tree', leaf: 'oval', green: '#4E8B57', fruit: { colour: '#C4322C', shape: 'round', count: 3, size: 0.13 }, flower: { colour: '#F7E4EC', centre: '#E9C44C', petals: 5, size: 0.2 } },
+  avocado: { form: 'tree', leaf: 'oval', green: '#3F7A4E', fruit: { colour: '#4A5F2C', shape: 'oval', count: 2, size: 0.13 } },
+  blackberry: { form: 'cane', leaf: 'serrated', green: '#4E7B4E', fruit: { colour: '#2E1F3E', shape: 'cluster', count: 2, size: 0.1 } },
+  blueberry: { form: 'cane', leaf: 'oval', green: '#4E8B6B', fruit: { colour: '#4A5FA8', shape: 'round', count: 3, size: 0.09 } },
+  cherry: { form: 'tree', leaf: 'oval', green: '#4E8B57', fruit: { colour: '#B4172C', shape: 'round', count: 4, size: 0.1 }, flower: { colour: '#F7E9EE', centre: '#E9C44C', petals: 5, size: 0.2 } },
+  fig: { form: 'tree', leaf: 'lobed', green: '#3F7A4E', fruit: { colour: '#6E4A7B', shape: 'oval', count: 3, size: 0.12 } },
+  grape: { form: 'cane', leaf: 'lobed', green: '#5E8B4E', fruit: { colour: '#6E3A8E', shape: 'cluster', count: 2, size: 0.12 } },
+  lemon: { form: 'tree', leaf: 'oval', green: '#3F7A4E', fruit: { colour: '#E9C42C', shape: 'oval', count: 3, size: 0.12 } },
+  lime: { form: 'tree', leaf: 'oval', green: '#3F7A4E', fruit: { colour: '#8EB42C', shape: 'round', count: 3, size: 0.11 } },
+  lingonberry: { form: 'bushy', leaf: 'round', green: '#3F6B4E', fruit: { colour: '#C4322C', shape: 'round', count: 4, size: 0.08 } },
+  orange: { form: 'tree', leaf: 'oval', green: '#3F7A4E', fruit: { colour: '#E9822C', shape: 'round', count: 3, size: 0.13 } },
+  peach: { form: 'tree', leaf: 'oval', green: '#4E8B57', fruit: { colour: '#E8A06E', shape: 'round', count: 3, size: 0.13 } },
+  raspberry: { form: 'cane', leaf: 'serrated', green: '#4E7B4E', fruit: { colour: '#C4324A', shape: 'cluster', count: 2, size: 0.1 } },
+  buckwheat: { form: 'stalk', leaf: 'heart', green: '#6E8B5E', flower: { colour: '#F2E8D8', centre: '#D8CEB8', petals: 5, size: 0.28 } },
+  corn: { form: 'stalk', leaf: 'blade', green: '#5E9B4E', fruit: { colour: '#E9C44C', shape: 'cob', count: 2, size: 0.22 } },
+  oats: { form: 'grass', leaf: 'blade', green: '#A8B46E', fruit: { colour: '#D8C88E', shape: 'cluster', count: 1, size: 0.14 } },
+  quinoa: { form: 'stalk', leaf: 'oval', green: '#7B9B5E', flower: { colour: '#C4623A', centre: '#A84E2C', petals: 6, size: 0.3 } },
+  rice: { form: 'grass', leaf: 'blade', green: '#8EA85E', fruit: { colour: '#D8CE9E', shape: 'cluster', count: 1, size: 0.12 } },
+  wheat: { form: 'grass', leaf: 'blade', green: '#B4A86E', fruit: { colour: '#D9BE72', shape: 'cluster', count: 1, size: 0.14 } },
+  lettuce: { form: 'rosette', leaf: 'oval', green: '#8EC46E', green2: '#A8D48E' },
+  spinach: { form: 'rosette', leaf: 'heart', green: '#3F7A4E', green2: '#4E8B57' },
+  chard: { form: 'leafy', leaf: 'oval', green: '#3F7A4E', stem: '#E8C44C' },
+  arugula: { form: 'rosette', leaf: 'lobed', green: '#5E9B4E' },
+  endive: { form: 'rosette', leaf: 'serrated', green: '#A8C46E' },
+  mustard: { form: 'leafy', leaf: 'lobed', green: '#6EA84E', flower: { colour: '#E9D24C', centre: '#C4A82C', petals: 4, size: 0.24 } },
+  purslane: { form: 'bushy', leaf: 'round', green: '#6EA85E' },
+  sorrel: { form: 'leafy', leaf: 'heart', green: '#6EA84E' },
+  basil: { form: 'bushy', leaf: 'oval', green: '#4E8B4E' },
+  mint: { form: 'bushy', leaf: 'serrated', green: '#4E9B5E' },
+  rosemary: { form: 'bushy', leaf: 'needle', green: '#4A6B4E' },
+  ashwagandha: { form: 'bushy', leaf: 'oval', green: '#6E8B5E', fruit: { colour: '#D9553A', shape: 'round', count: 3, size: 0.07 } },
+  borage: { form: 'bushy', leaf: 'oval', green: '#5E8B5E', flower: { colour: '#4A6BC4', centre: '#2E3A6E', petals: 5, size: 0.3 } },
+  catnip: { form: 'bushy', leaf: 'serrated', green: '#7BA86E', flower: { colour: '#C4B4D4', centre: '#A894BE', petals: 5, size: 0.24 } },
+  chervil: { form: 'bushy', leaf: 'feathery', green: '#7BA86E' },
+  cilantro: { form: 'bushy', leaf: 'feathery', green: '#6EA85E' },
+  cumin: { form: 'bushy', leaf: 'feathery', green: '#8EA86E', flower: { colour: '#F2E8D8', centre: '#D8CEB8', petals: 5, size: 0.22 } },
+  dandelion: { form: 'rosette', leaf: 'serrated', green: '#6EA84E', flower: { colour: '#E9C42C', centre: '#E9A82C', petals: 12, size: 0.3 } },
+  dill: { form: 'bushy', leaf: 'feathery', green: '#6E9B5E', flower: { colour: '#E9D24C', centre: '#C4A82C', petals: 8, size: 0.26 } },
+  ginger: { form: 'leafy', leaf: 'blade', green: '#4E8B5E', crown: { colour: '#D9B98E' } },
+  lemonbalm: { form: 'bushy', leaf: 'serrated', green: '#6EA85E' },
+  lemonverbena: { form: 'bushy', leaf: 'oval', green: '#5E9B5E' },
+  lemongrass: { form: 'grass', leaf: 'blade', green: '#8EB46E' },
+  licorice: { form: 'bushy', leaf: 'oval', green: '#5E8B5E' },
+  marjoram: { form: 'bushy', leaf: 'oval', green: '#7BA86E' },
+  marshmallow: { form: 'bushy', leaf: 'heart', green: '#7BA87E', flower: { colour: '#E8B4C4', centre: '#D49EB4', petals: 5, size: 0.3 } },
+  oregano: { form: 'bushy', leaf: 'round', green: '#6E9B5E' },
+  parsley: { form: 'bushy', leaf: 'lobed', green: '#3F8B4E' },
+  sage: { form: 'bushy', leaf: 'oval', green: '#8EA88E' },
+  nettle: { form: 'leafy', leaf: 'serrated', green: '#4E7B3E' },
+  tarragon: { form: 'bushy', leaf: 'blade', green: '#6E9B5E' },
+  thyme: { form: 'bushy', leaf: 'needle', green: '#7B9B6E' },
+  turmeric: { form: 'leafy', leaf: 'blade', green: '#4E8B5E', crown: { colour: '#E9922C' } },
+  valerian: { form: 'bushy', leaf: 'feathery', green: '#6E9B5E', flower: { colour: '#F2E0E8', centre: '#D8C4CE', petals: 5, size: 0.26 } },
+  horehound: { form: 'bushy', leaf: 'round', green: '#9EAE8E' },
+  runnerbean: { form: 'climber', leaf: 'heart', green: '#4E8B4E', fruit: { colour: '#3F7A3E', shape: 'pod', count: 3, size: 0.2 }, flower: { colour: '#D9455F', centre: '#A82C44', petals: 4, size: 0.2 } },
+  pea: { form: 'climber', leaf: 'oval', green: '#6EA85E', fruit: { colour: '#7BB44E', shape: 'pod', count: 3, size: 0.18 }, flower: { colour: '#F2F0E8', centre: '#D8D4C8', petals: 4, size: 0.18 } },
+  broadbean: { form: 'climber', leaf: 'oval', green: '#5E8B5E', fruit: { colour: '#6E9B4E', shape: 'pod', count: 3, size: 0.2 } },
+  lentil: { form: 'bushy', leaf: 'oval', green: '#8EA86E', fruit: { colour: '#C4A86E', shape: 'pod', count: 3, size: 0.1 } },
+  peanut: { form: 'bushy', leaf: 'oval', green: '#6E9B5E', fruit: { colour: '#D9BE8E', shape: 'oval', count: 2, size: 0.1 } },
+  courgette: { form: 'vine', leaf: 'lobed', green: '#4E8B4E', fruit: { colour: '#3F7A3E', shape: 'long', count: 1, size: 0.16 }, flower: { colour: '#E9C44C', centre: '#C4A82C', petals: 5, size: 0.3 } },
+  bittermelon: { form: 'vine', leaf: 'lobed', green: '#5E9B4E', fruit: { colour: '#7BB44E', shape: 'long', count: 1, size: 0.15 } },
+  cantaloupe: { form: 'vine', leaf: 'lobed', green: '#5E8B4E', fruit: { colour: '#D9BE8E', shape: 'round', count: 1, size: 0.18 } },
+  cucumber: { form: 'vine', leaf: 'lobed', green: '#4E8B4E', fruit: { colour: '#3F8B3E', shape: 'long', count: 1, size: 0.16 } },
+  gourd: { form: 'vine', leaf: 'lobed', green: '#6E8B4E', fruit: { colour: '#C4A84E', shape: 'oval', count: 1, size: 0.17 } },
+  honeydew: { form: 'vine', leaf: 'lobed', green: '#6E9B5E', fruit: { colour: '#D9E0A8', shape: 'round', count: 1, size: 0.18 } },
+  pumpkin: { form: 'vine', leaf: 'lobed', green: '#4E7B3E', fruit: { colour: '#E9822C', shape: 'round', count: 1, size: 0.22 } },
+  squash: { form: 'vine', leaf: 'lobed', green: '#4E7B4E', fruit: { colour: '#D9922C', shape: 'oval', count: 1, size: 0.2 } },
+  watermelon: { form: 'vine', leaf: 'lobed', green: '#4E8B4E', fruit: { colour: '#3F6B2C', shape: 'oval', count: 1, size: 0.22 } },
+  tomato: { form: 'climber', leaf: 'lobed', green: '#3F7A3E', fruit: { colour: '#D1342C', shape: 'round', count: 3, size: 0.13 }, flower: { colour: '#E9D24C', centre: '#C4A82C', petals: 5, size: 0.16 } },
+  eggplant: { form: 'climber', leaf: 'lobed', green: '#4E7B4E', fruit: { colour: '#5E2E7B', shape: 'oval', count: 2, size: 0.16 } },
+  groundcherry: { form: 'bushy', leaf: 'heart', green: '#6E9B5E', fruit: { colour: '#E9C46E', shape: 'round', count: 3, size: 0.1 } },
+  pepper: { form: 'climber', leaf: 'oval', green: '#3F7A3E', fruit: { colour: '#D1342C', shape: 'long', count: 3, size: 0.14 } },
+  tomatillo: { form: 'climber', leaf: 'oval', green: '#5E8B4E', fruit: { colour: '#8EB44E', shape: 'round', count: 3, size: 0.12 } },
+  aloevera: { form: 'rosette', leaf: 'blade', green: '#7BA88E' },
+  artichoke: { form: 'leafy', leaf: 'lobed', green: '#8EA88E', fruit: { colour: '#7B8E6E', shape: 'head', count: 1, size: 0.2 } },
+  asparagus: { form: 'grass', leaf: 'needle', green: '#6E9B5E' },
+  celery: { form: 'leafy', leaf: 'lobed', green: '#8EB46E', stem: '#C4D48E' },
+  fennel: { form: 'bushy', leaf: 'feathery', green: '#7BA86E', crown: { colour: '#E8F0D8' } },
+  okra: { form: 'stalk', leaf: 'lobed', green: '#4E8B4E', fruit: { colour: '#5E9B3E', shape: 'long', count: 3, size: 0.13 }, flower: { colour: '#F2E8C8', centre: '#8E4A2C', petals: 5, size: 0.26 } },
+  rhubarb: { form: 'leafy', leaf: 'lobed', green: '#4E7B3E', stem: '#C4324A' },
+  sugarcane: { form: 'grass', leaf: 'blade', green: '#8EB46E' },
+  radish: { form: 'root', leaf: 'lobed', green: '#6EA84E', crown: { colour: '#D1344A' } },
+  carrot: { form: 'root', leaf: 'feathery', green: '#4E8B4E', crown: { colour: '#E9822C' } },
+  beetroot: { form: 'root', leaf: 'oval', green: '#5E7B4E', green2: '#8E4A5E', crown: { colour: '#8E2C4A' } },
+  potato: { form: 'leafy', leaf: 'lobed', green: '#4E7B4E', flower: { colour: '#E8E0F0', centre: '#E9C44C', petals: 5, size: 0.2 } },
+  celeriac: { form: 'root', leaf: 'lobed', green: '#6E9B5E', crown: { colour: '#D9D4B8' } },
+  horseradish: { form: 'root', leaf: 'serrated', green: '#5E8B4E', crown: { colour: '#E8E0C8' } },
+  jerusalemartichoke: { form: 'stalk', leaf: 'heart', green: '#5E8B4E', flower: { colour: '#E9C42C', centre: '#8E6E2C', petals: 10, size: 0.32 } },
+  jicama: { form: 'climber', leaf: 'heart', green: '#5E9B5E', crown: { colour: '#D9C8A8' } },
+  parsleyroot: { form: 'root', leaf: 'lobed', green: '#4E8B4E', crown: { colour: '#E8E0C8' } },
+  parsnip: { form: 'root', leaf: 'lobed', green: '#5E8B4E', crown: { colour: '#E8DEBE' } },
+  rutabaga: { form: 'root', leaf: 'lobed', green: '#6E9B5E', crown: { colour: '#C4A86E' } },
+  salsify: { form: 'root', leaf: 'blade', green: '#7BA86E', crown: { colour: '#D9CEB8' } },
+  sweetpotato: { form: 'vine', leaf: 'heart', green: '#5E8B4E', fruit: { colour: '#C4622C', shape: 'oval', count: 1, size: 0.16 } },
+  turnip: { form: 'root', leaf: 'serrated', green: '#6EA84E', crown: { colour: '#E8E0E8' } },
+  spiderplant: { form: 'leafy', leaf: 'lobed', green: '#5E9B4E' },
+  africannightshade: { form: 'leafy', leaf: 'oval', green: '#3F6B3E', fruit: { colour: '#2E2438', shape: 'round', count: 4, size: 0.07 } },
+  cowpea: { form: 'climber', leaf: 'heart', green: '#6E9B5E', fruit: { colour: '#C4A86E', shape: 'pod', count: 3, size: 0.18 } },
+  jutemallow: { form: 'leafy', leaf: 'serrated', green: '#5E9B5E' },
+  africaneggplant: { form: 'climber', leaf: 'lobed', green: '#4E7B4E', fruit: { colour: '#D9622C', shape: 'round', count: 2, size: 0.14 } },
+  pigeonpea: { form: 'bushy', leaf: 'oval', green: '#6E8B5E', fruit: { colour: '#B49B6E', shape: 'pod', count: 3, size: 0.14 }, flower: { colour: '#E9C44C', centre: '#C4A82C', petals: 5, size: 0.22 } },
+  fingermillet: { form: 'grass', leaf: 'blade', green: '#8EA85E', fruit: { colour: '#B4844E', shape: 'cluster', count: 1, size: 0.13 } },
+  skirret: { form: 'root', leaf: 'lobed', green: '#5E9B5E', crown: { colour: '#E8E4CE' } },
+  goodkinghenry: { form: 'leafy', leaf: 'heart', green: '#4E8B4E' },
+  seakale: { form: 'rosette', leaf: 'lobed', green: '#8EA8A8' },
+  medlar: { form: 'tree', leaf: 'oval', green: '#4E8B57', fruit: { colour: '#8E6E4A', shape: 'round', count: 3, size: 0.12 } },
+  blackcurrant: { form: 'cane', leaf: 'lobed', green: '#4E7B4E', fruit: { colour: '#241C2E', shape: 'cluster', count: 3, size: 0.09 } },
+  watercress: { form: 'bushy', leaf: 'round', green: '#4E9B6E' },
+  // --- Kenyan crops ---
+  slenderleaf: { form: 'bushy', leaf: 'blade', green: '#7FA85C', green2: '#93B96E', stem: '#6E8F4E' },
+  ethiopiankale: { form: 'rosette', leaf: 'lobed', green: '#4F8F4A', green2: '#68A85E', stem: '#8FB86A' },
+  moringa: { form: 'tree', leaf: 'feathery', green: '#79B06A', green2: '#8FC47C', stem: '#9A8A6A' },
+  greengram: { form: 'bushy', leaf: 'oval', green: '#63975A', green2: '#7CAE6E',
+    fruit: { colour: '#4E7A3A', shape: 'pod', count: 5, size: 0.16 } },
+  lablab: { form: 'climber', leaf: 'heart', green: '#54874E', green2: '#6FA267',
+    fruit: { colour: '#8E5FA8', shape: 'pod', count: 4, size: 0.2 } },
+  chickpea: { form: 'bushy', leaf: 'feathery', green: '#7BA36A', green2: '#90B87F',
+    fruit: { colour: '#A8B96A', shape: 'pod', count: 5, size: 0.12 } },
+  sorghum: { form: 'grass', leaf: 'blade', green: '#7FA455', green2: '#94B96A', stem: '#8AA35C',
+    fruit: { colour: '#B4614A', shape: 'head', count: 1, size: 0.26 } },
+  pearlmillet: { form: 'grass', leaf: 'blade', green: '#8CAE63', green2: '#A0BE79', stem: '#93A85F',
+    fruit: { colour: '#C9B482', shape: 'head', count: 1, size: 0.3 } },
+  sesame: { form: 'stalk', leaf: 'oval', green: '#6E9C5E', green2: '#84AF74', stem: '#7C9A5E',
+    flower: { colour: '#F3E8F0', centre: '#D8C2D4', petals: 5, size: 0.1 },
+    fruit: { colour: '#B9A96E', shape: 'pod', count: 6, size: 0.12 } },
+  cassava: { form: 'tree', leaf: 'lobed', green: '#4C8B46', green2: '#66A55E', stem: '#9C6B4A',
+    crown: { colour: '#C9A882' } },
+  arrowroot: { form: 'leafy', leaf: 'heart', green: '#3F8248', green2: '#579B5E', stem: '#6FA36A',
+    crown: { colour: '#8E7355' } },
+  yam: { form: 'climber', leaf: 'heart', green: '#4E8B52', green2: '#68A46A', stem: '#8A6B4E',
+    crown: { colour: '#7A5F44' } },
+  banana: { form: 'tree', leaf: 'blade', green: '#4E9450', green2: '#69AC66', stem: '#7E8F58',
+    fruit: { colour: '#E8C15A', shape: 'cluster', count: 3, size: 0.2 } },
+  mango: { form: 'tree', leaf: 'oval', green: '#3E7C42', green2: '#57955A', stem: '#8A6A4E',
+    fruit: { colour: '#E8A03C', shape: 'oval', count: 3, size: 0.19 } },
+  papaya: { form: 'tree', leaf: 'lobed', green: '#4C8F4E', green2: '#66A866', stem: '#9A8A66',
+    fruit: { colour: '#E8933C', shape: 'oval', count: 4, size: 0.17 } },
+  passionfruit: { form: 'climber', leaf: 'lobed', green: '#43884A', green2: '#5CA062',
+    flower: { colour: '#C7A8DE', centre: '#F0E4B0', petals: 10, size: 0.13 },
+    fruit: { colour: '#7A4A6E', shape: 'round', count: 3, size: 0.15 } },
+  guava: { form: 'tree', leaf: 'oval', green: '#5A9155', green2: '#73A96C', stem: '#A08A72',
+    fruit: { colour: '#C7D46A', shape: 'round', count: 4, size: 0.16 } },
+  pumpkinleaf: { form: 'vine', leaf: 'lobed', green: '#4F8C46', green2: '#6BA55F', stem: '#7FA35C' },
+};
+
+/// Every species has one. This is the fallback if a new species ever lands in the
+/// catalogue before its drawing is described - one shared object, not a fresh one per
+/// call, because PlantSprite is memoised on look identity.
+const DEFAULT_LOOK: PlantLook = { form: 'leafy', leaf: 'oval', green: '#4E8B57' };
+
+/// Which of those a given crop does, decided by botany rather than by looks.
+///
+/// Named species first, because the interesting cases are the exceptions - a sweet potato
+/// is a root but comes up as a shoot off a slip, and a chickpea is a legume that unfolds
+/// feathery rather than fat. Everything not named falls to its family, which is right far
+/// more often than not.
+const SPROUT_BY_ID: Record<string, SproutKind> = {
+  // Monocots that come up as one blade.
+  corn: 'blade', sorghum: 'blade', pearlmillet: 'blade', fingermillet: 'blade',
+  rice: 'blade', wheat: 'blade', oats: 'blade', lemongrass: 'blade', sugarcane: 'blade',
+  // Broad-strapped monocots.
+  banana: 'strap', arrowroot: 'strap', yam: 'strap', ginger: 'strap', turmeric: 'strap',
+  asparagus: 'strap', aloevera: 'strap', iris: 'strap',
+  // Grown from a cutting, slip or tuber - no seed leaves at all.
+  cassava: 'shoot', potato: 'shoot', sweetpotato: 'shoot', jerusalemartichoke: 'shoot',
+  horseradish: 'shoot', rhubarb: 'shoot', seakale: 'shoot', skirret: 'shoot',
+  // Umbellifers and others with thread-fine first leaves.
+  carrot: 'thread', parsnip: 'thread', celeriac: 'thread', parsleyroot: 'thread',
+  celery: 'thread', dill: 'thread', fennel: 'thread', chervil: 'thread', cilantro: 'thread',
+  cumin: 'thread', parsley: 'thread', caraway: 'thread', salsify: 'thread',
+  // Fat cotyledons you can see from across the plot.
+  sunflower: 'fat', courgette: 'fat', pumpkin: 'fat', squash: 'fat', cucumber: 'fat',
+  watermelon: 'fat', cantaloupe: 'fat', honeydew: 'fat', gourd: 'fat', bittermelon: 'fat',
+  pumpkinleaf: 'fat', peanut: 'fat', broadbean: 'fat', runnerbean: 'fat', pea: 'fat',
+  cowpea: 'fat', lablab: 'fat', greengram: 'fat', pigeonpea: 'fat', lentil: 'fat',
+  // Fine and resinous.
+  rosemary: 'needle', thyme: 'needle', savory: 'needle', lavender: 'needle',
+  // Legumes that unfold feathery instead.
+  chickpea: 'thread',
+};
+
+const SPROUT_BY_FAMILY: Record<PlantFamily, SproutKind> = {
+  allium: 'loop',
+  grain: 'blade',
+  legume: 'fat',
+  cole: 'heart',
+  vine: 'fat',
+  tree: 'shoot',
+  cane: 'shoot',
+  root: 'pair',
+  leafy: 'pair',
+  herb: 'pair',
+  flower: 'pair',
+  fruiting: 'pair',
+};
+
+export function sproutFor(species: Species): SproutKind {
+  return SPROUT_BY_ID[species.id] ?? SPROUT_BY_FAMILY[species.family];
+}
+
+// Stamped onto the shared look objects once, at load. Mutating in place rather than
+// building new objects keeps every look's identity stable, which is what the sprite's
+// memoisation is comparing on.
+for (const species of SPECIES) {
+  const look = LOOKS[species.id];
+  if (look && !look.sprout) look.sprout = sproutFor(species);
+}
+
+export function lookOf(species: Species): PlantLook {
+  return LOOKS[species.id] ?? DEFAULT_LOOK;
+}
+
+const BY_ID: Record<string, Species> = Object.fromEntries(SPECIES.map((s) => [s.id, s]));
+
 export function speciesById(id: string): Species {
-  return SPECIES.find((s) => s.id === id) ?? SPECIES[0];
+  return BY_ID[id] ?? SPECIES[0];
 }
 
 export const sowableIn = (month: number) => SPECIES.filter((s) => s.sowMonths.includes(month));

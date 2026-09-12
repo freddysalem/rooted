@@ -1,0 +1,222 @@
+import React, { memo, useCallback, useMemo } from 'react';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
+import { Ionicons } from '@expo/vector-icons';
+import { PlantSprite } from './PlantSprite';
+import { Planting, getSpecies, latestHeight, progressOf, seedOf } from '../models/planting';
+import { Species, lookOf } from '../models/species';
+import { color, radius, size, space, type } from '../theme';
+
+/// Your plot, as beds in rows.
+///
+/// Three across, filled in planting order, with one empty bed waiting at the end. It is a
+/// list, so it grows without limit and only builds the rows you can actually see - which
+/// is the whole reason it is cheap: a screenful of beds is a screenful of drawing however
+/// many plants you have.
+///
+/// Each bed is a strip of soil with the plant standing on it and its name underneath, so
+/// the row reads left to right as things you can press rather than as a picture to
+/// explore. Nothing here zooms, pans or holds a camera position.
+
+const COLUMNS = 3;
+const SPRITE_H = 78;
+const SOIL_H = 22;
+
+/// Must match the floor inside PlantSprite, which never draws a plant at zero size.
+const SPRITE_FLOOR = 0.3;
+
+const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
+
+type Cell =
+  | { key: string; kind: 'planting'; planting: Planting }
+  | { key: string; kind: 'empty'; plot: number };
+
+/// How grown this plant looks. A real measurement outranks the calendar - the point of
+/// recording a height is that the drawn plant matches the one in the ground.
+function growthOf(planting: Planting, species: Species) {
+  const measured = latestHeight(planting);
+  return measured !== null
+    ? clamp(measured / Math.max(species.matureHeightCm, 1), 0.02, 1)
+    : progressOf(planting);
+}
+
+export function PlotGrid({ plantings, isThirsty, onOpenPlant, onPlantEmpty, header }: {
+  plantings: Planting[];
+  isThirsty: (planting: Planting) => boolean;
+  onOpenPlant: (planting: Planting) => void;
+  onPlantEmpty: (plot: number) => void;
+  /** Drawn above the first row and scrolls with it. */
+  header?: React.ReactElement | null;
+}) {
+  // Beds are laid out in planting order, so the rows stay dense even if a plant in the
+  // middle was pulled up and left a gap in the stored indices.
+  const cells = useMemo<Cell[]>(() => {
+    const ordered = [...plantings].sort((a, b) => a.plot - b.plot);
+    const nextPlot = ordered.reduce((highest, p) => Math.max(highest, p.plot + 1), 0);
+    return [
+      ...ordered.map((planting) => ({
+        key: planting.id,
+        kind: 'planting' as const,
+        planting,
+      })),
+      { key: `empty-${nextPlot}`, kind: 'empty' as const, plot: nextPlot },
+    ];
+  }, [plantings]);
+
+  const renderItem = useCallback(({ item }: { item: Cell }) => (
+    item.kind === 'planting' ? (
+      <PlantedBed
+        planting={item.planting}
+        thirsty={isThirsty(item.planting)}
+        onPress={onOpenPlant}
+      />
+    ) : (
+      <EmptyBed plot={item.plot} onPress={onPlantEmpty} />
+    )
+  ), [isThirsty, onOpenPlant, onPlantEmpty]);
+
+  return (
+    <FlatList
+      data={cells}
+      keyExtractor={(cell) => cell.key}
+      numColumns={COLUMNS}
+      renderItem={renderItem}
+      columnWrapperStyle={styles.row}
+      contentContainerStyle={styles.content}
+      ListHeaderComponent={header}
+      showsVerticalScrollIndicator={false}
+      initialNumToRender={9}
+      maxToRenderPerBatch={6}
+      windowSize={5}
+    />
+  );
+}
+
+const PlantedBed = memo(function PlantedBed({ planting, thirsty, onPress }: {
+  planting: Planting;
+  thirsty: boolean;
+  onPress: (planting: Planting) => void;
+}) {
+  const species = getSpecies(planting);
+  const growth = growthOf(planting, species);
+  const named = planting.nickname.trim().length > 0
+    && planting.nickname.trim().toLowerCase() !== species.name.toLowerCase();
+  const press = useCallback(() => onPress(planting), [onPress, planting]);
+
+  return (
+    <Pressable
+      onPress={press}
+      accessibilityRole="button"
+      accessibilityLabel={`${named ? `${planting.nickname}, ` : ''}${species.name}${thirsty ? ', needs water' : ''}`}
+      style={({ pressed }) => [styles.cell, pressed && styles.cellPressed]}
+    >
+      <View style={styles.stage}>
+        <View style={styles.sprite}>
+          <PlantSprite
+            look={lookOf(species)}
+            progress={growth}
+            seed={seedOf(planting)}
+            height={SPRITE_H}
+          />
+        </View>
+        <Soil />
+        {thirsty ? (
+          <View style={styles.drop} accessibilityElementsHidden>
+            <Ionicons name="water" size={11} color="#FFF" />
+          </View>
+        ) : null}
+      </View>
+      {/* A nickname earns the bold line and the species drops underneath it. Without one,
+          "Radish" over "Radish" was just the same word twice. */}
+      {named ? (
+        <>
+          <Text numberOfLines={1} style={styles.name}>{planting.nickname}</Text>
+          <Text numberOfLines={1} style={type.caption}>{species.name}</Text>
+        </>
+      ) : (
+        <Text numberOfLines={1} style={styles.name}>{species.name}</Text>
+      )}
+    </Pressable>
+  );
+});
+
+const EmptyBed = memo(function EmptyBed({ plot, onPress }: {
+  plot: number;
+  onPress: (plot: number) => void;
+}) {
+  const press = useCallback(() => onPress(plot), [onPress, plot]);
+
+  return (
+    <Pressable
+      onPress={press}
+      accessibilityRole="button"
+      accessibilityLabel="Empty bed. Plant something here"
+      style={({ pressed }) => [styles.cell, pressed && styles.cellPressed]}
+    >
+      <View style={[styles.stage, styles.stageEmpty]}>
+        <Ionicons name="add" size={22} color={color.soilText} />
+      </View>
+      <Text numberOfLines={1} style={[styles.name, { color: color.textSecondary }]}>Empty</Text>
+      <Text numberOfLines={1} style={type.caption}>Plant something</Text>
+    </Pressable>
+  );
+});
+
+/// The strip of earth the plant stands on. Drawn rather than tinted so the beds have some
+/// depth to them without the whole screen becoming a picture.
+const Soil = memo(function Soil() {
+  return (
+    <View style={styles.soil} pointerEvents="none">
+      <Svg width="100%" height={SOIL_H}>
+        <Defs>
+          <LinearGradient id="soil" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor="#A0764C" />
+            <Stop offset="1" stopColor="#6F4C31" />
+          </LinearGradient>
+        </Defs>
+        <Rect x="0" y="0" width="100%" height={SOIL_H} rx={8} fill="url(#soil)" />
+      </Svg>
+    </View>
+  );
+});
+
+const styles = StyleSheet.create({
+  content: { paddingBottom: space.xl, gap: space.md },
+  row: { gap: space.md },
+  cell: {
+    flex: 1 / COLUMNS,
+    gap: 3,
+    padding: space.xs,
+    borderRadius: radius.sm,
+  },
+  cellPressed: { backgroundColor: color.surfacePressed },
+  stage: {
+    height: SPRITE_H + SOIL_H * 0.4,
+    borderRadius: radius.sm,
+    backgroundColor: color.sky + '55',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    overflow: 'hidden',
+  },
+  stageEmpty: {
+    backgroundColor: color.surfaceSunken,
+    borderWidth: 1.5,
+    borderColor: color.soilTint,
+    borderStyle: 'dashed',
+    justifyContent: 'center',
+  },
+  sprite: { position: 'absolute', bottom: SOIL_H * 0.55, alignItems: 'center' },
+  soil: { position: 'absolute', left: 0, right: 0, bottom: 0, height: SOIL_H },
+  drop: {
+    position: 'absolute',
+    top: 5,
+    right: 5,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: color.water,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  name: { fontSize: 13, lineHeight: 16, fontWeight: '700', color: color.text },
+});

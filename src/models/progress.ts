@@ -4,12 +4,12 @@
 /// the plot is left thirsty. Miss a plant that asked for water and the streak goes back to
 /// nothing, so the number on screen is a real claim about how the garden has been kept.
 ///
-/// Thresholds double. A week gets you off the shed, a fortnight the cabin, and after that
+/// Thresholds double. A week gets you off the shed, a fortnight to the barn, and after that
 /// each level costs as much as everything before it - the top of the ladder is meant to be
 /// a genuinely long relationship with the app rather than a fortnight of enthusiasm.
 
 export type HomeTier =
-  | 'shed' | 'pottingShed' | 'cabin' | 'cottage' | 'farmhouse' | 'bigFarmhouse' | 'estate';
+  | 'shed' | 'pottingShed' | 'barn' | 'countryHouse' | 'farmhouse' | 'manor' | 'estate';
 
 export type Pet = 'chickens' | 'dog' | 'horse';
 
@@ -28,20 +28,20 @@ export interface Level {
 }
 
 export const LEVELS: Level[] = [
-  { level: 1, streakDays: 0,   plantsGrown: 1,  home: 'shed',          homeName: 'Garden shed',
+  { level: 1, streakDays: 0,   plantsGrown: 1,  home: 'shed',         homeName: 'Garden shed',
     pets: [], unlock: 'A shed, a bed, and something growing in it.' },
-  { level: 2, streakDays: 7,   plantsGrown: 2,  home: 'pottingShed',   homeName: 'Potting shed',
-    pets: [], unlock: 'A week of keeping everything watered. The shed gets a window.' },
-  { level: 3, streakDays: 14,  plantsGrown: 3,  home: 'cabin',         homeName: 'Cabin',
-    pets: [], unlock: 'A fortnight. A proper cabin with a chimney.' },
-  { level: 4, streakDays: 28,  plantsGrown: 5,  home: 'cottage',       homeName: 'Cottage',
-    pets: [], unlock: 'A month. A cottage with a porch - and you can now choose its colour.' },
-  { level: 5, streakDays: 56,  plantsGrown: 8,  home: 'farmhouse',     homeName: 'Farmhouse',
-    pets: ['chickens'], unlock: 'Two months. A farmhouse, and chickens move in.' },
-  { level: 6, streakDays: 112, plantsGrown: 12, home: 'bigFarmhouse',  homeName: 'Big farmhouse',
-    pets: ['dog'], unlock: 'Four months. The house gains a wing, and a dog.' },
-  { level: 7, streakDays: 224, plantsGrown: 18, home: 'estate',        homeName: 'Country estate',
-    pets: ['horse'], unlock: 'Eight months of consistency. A stable, and a horse in the paddock.' },
+  { level: 2, streakDays: 7,   plantsGrown: 2,  home: 'pottingShed',  homeName: 'Potting shed',
+    pets: [], unlock: 'A week of keeping everything watered. Windows, and a proper panelled door.' },
+  { level: 3, streakDays: 14,  plantsGrown: 3,  home: 'barn',         homeName: 'Barn',
+    pets: [], unlock: 'A fortnight. The shed becomes a barn - twice the size, with real doors.' },
+  { level: 4, streakDays: 28,  plantsGrown: 5,  home: 'countryHouse', homeName: 'Country house',
+    pets: [], unlock: 'A month. A house to go with the plot, an outbuilding - and you choose the colour.' },
+  { level: 5, streakDays: 56,  plantsGrown: 8,  home: 'farmhouse',    homeName: 'Farmhouse',
+    pets: ['chickens'], unlock: 'Two months. Two storeys, a portico, and chickens move in.' },
+  { level: 6, streakDays: 112, plantsGrown: 12, home: 'manor',        homeName: 'Manor',
+    pets: ['dog'], unlock: 'Four months. A hipped roof, a wing, a second outbuilding, and a dog.' },
+  { level: 7, streakDays: 224, plantsGrown: 18, home: 'estate',       homeName: 'Country estate',
+    pets: ['horse'], unlock: 'Eight months of consistency. A pool, a third chimney, and a horse.' },
 ];
 
 /// Colours the house can be painted, once level 4 is reached.

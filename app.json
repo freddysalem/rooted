@@ -26,6 +26,11 @@
       "favicon": "./assets/favicon.png",
       "bundler": "metro",
       "output": "single"
-    }
+    },
+    "plugins": [
+      "expo-status-bar",
+      "expo-font",
+      "expo-notifications"
+    ]
   }
 }

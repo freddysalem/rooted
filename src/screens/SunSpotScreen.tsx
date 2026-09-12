@@ -7,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Button, Card, Chip, ContentColumn, Pill, SectionHeader } from '../components/ui';
 import { PlantSprite, seedFromString } from '../components/PlantSprite';
 import { useGarden } from '../state/GardenContext';
-import { SPECIES, Species, lightLabel, lightMinimumHours } from '../models/species';
+import { SPECIES, Species, lightLabel, lightMinimumHours, lookOf } from '../models/species';
 import { badgeById } from '../models/badges';
 import {
   SunSample, angularDistance, compassLabel, lightNeedForHours, sunArc, sunHoursFromArc, sunPosition,
@@ -275,7 +275,7 @@ export function SunSpotScreen({ active = true }: { active?: boolean }) {
                 style={({ pressed }) => [styles.tileWrap, pressed && { transform: [{ scale: 0.96 }] }]}
               >
                 <View style={styles.tile}>
-                  <PlantSprite family={species.family} progress={0.85} seed={seedFromString(species.id)} height={70} />
+                  <PlantSprite look={lookOf(species)} progress={0.85} seed={seedFromString(species.id)} height={70} />
                 </View>
                 <Text style={[type.captionStrong, { textAlign: 'center' }]} numberOfLines={1}>{species.name}</Text>
               </Pressable>

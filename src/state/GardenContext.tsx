@@ -13,6 +13,8 @@ import {
 } from '../models/progress';
 import { REGIONS, RegionId } from '../models/regions';
 import * as haptics from '../services/haptics';
+import * as reminders from '../services/reminders';
+import { Container, DEFAULT_CONTAINER, WaterAdvice, waterFor } from '../services/water';
 
 const STORAGE_KEY = 'plantpartner.garden.v1';
 
@@ -46,7 +48,12 @@ interface GardenValue {
   wateringAdvice: (planting: Planting) => string;
   totalWaterings: number;
 
-  plant: (species: Species, nickname: string, plot: number) => void;
+  plant: (species: Species, nickname: string, plot: number, container?: Container) => void;
+  setContainer: (container: Container, planting: Planting) => void;
+  /** How much water this one wants right now, and why. */
+  waterAdvice: (planting: Planting) => WaterAdvice;
+  remindersOn: boolean;
+  enableReminders: () => Promise<boolean>;
   water: (planting: Planting) => void;
   recordHeight: (centimetres: number, planting: Planting) => void;
   updateNotes: (notes: string, planting: Planting) => void;
@@ -296,7 +303,7 @@ export function GardenProvider({ children }: { children: React.ReactNode }) {
     }
   }, [ready, level]);
 
-  const plant = useCallback((species: Species, nickname: string, plot: number) => {
+  const plant = useCallback((species: Species, nickname: string, plot: number, container?: Container) => {
     setPlantings((current) => {
       if (current.some((p) => p.plot === plot)) return current;
       const trimmed = nickname.trim();
@@ -312,6 +319,7 @@ export function GardenProvider({ children }: { children: React.ReactNode }) {
           plot,
           heights: [],
           notes: '',
+          container: container ?? DEFAULT_CONTAINER,
         },
       ];
     });
@@ -348,7 +356,36 @@ export function GardenProvider({ children }: { children: React.ReactNode }) {
     setPlantings((current) => current.filter((p) => p.id !== planting.id));
   }, []);
 
+  const setContainer = useCallback((container: Container, planting: Planting) => {
+    setPlantings((current) =>
+      current.map((p) => (p.id === planting.id ? { ...p, container } : p))
+    );
+  }, []);
+
   const markSunSurveyed = useCallback(() => setHasSurveyedSun(true), []);
+
+  const waterAdvice = useCallback(
+    (planting: Planting) => waterFor(planting, getSpecies(planting), weather),
+    [weather]
+  );
+
+  const [remindersOn, setRemindersOn] = useState(false);
+  useEffect(() => {
+    reminders.permissionStatus().then((status) => setRemindersOn(status === 'granted'));
+  }, []);
+
+  const enableReminders = useCallback(async () => {
+    const granted = await reminders.askPermission();
+    setRemindersOn(granted);
+    return granted;
+  }, []);
+
+  // Rescheduled whenever anything that changes a due date changes: the plants, what they
+  // are growing in, when they were last watered, or the weather that stretches the gap.
+  useEffect(() => {
+    if (!ready || !remindersOn) return;
+    reminders.rescheduleAll(plantings, weather, wateringInterval);
+  }, [ready, remindersOn, plantings, weather, wateringInterval]);
 
   const hasEarned = useCallback((badge: Badge) => earnedBadgeIDs.has(badge.id), [earnedBadgeIDs]);
   const earnedCount = useMemo(
@@ -356,18 +393,37 @@ export function GardenProvider({ children }: { children: React.ReactNode }) {
     [earnedBadgeIDs]
   );
 
-  const value: GardenValue = {
-    ready, plantings, weather, weatherIsLive, refreshWeather, justEarned,
-    dismissBadge: () => setJustEarned(null),
-    plantingInPlot, firstEmptyPlot, thirsty,
-    needsWater, wateringInterval, wateringAdvice, totalWaterings,
-    plant, water, recordHeight, updateNotes, removePlanting, markSunSurveyed,
-    hasEarned, earnedCount,
-    streak, plantsEverGrown, level, progress,
-    justLevelled, dismissLevel: () => setJustLevelled(null),
-    homeColour, setHomeColour,
-    region, setRegion,
-  };
+  const dismissBadge = useCallback(() => setJustEarned(null), []);
+  const dismissLevel = useCallback(() => setJustLevelled(null), []);
+
+  // Memoised deliberately. Every screen stays mounted behind the tab bar, so an
+  // identity change here re-renders all four of them - and each one is full of SVG
+  // sprites. Rebuilding this object on every render was making watering a plant cost
+  // a re-render of the entire app.
+  const value: GardenValue = useMemo(
+    () => ({
+      ready, plantings, weather, weatherIsLive, refreshWeather, justEarned, dismissBadge,
+      plantingInPlot, firstEmptyPlot, thirsty,
+      needsWater, wateringInterval, wateringAdvice, totalWaterings,
+      plant, water, recordHeight, updateNotes, removePlanting, markSunSurveyed,
+      setContainer, waterAdvice, remindersOn, enableReminders,
+      hasEarned, earnedCount,
+      streak, plantsEverGrown, level, progress,
+      justLevelled, dismissLevel,
+      homeColour, setHomeColour,
+      region, setRegion,
+    }),
+    [
+      ready, plantings, weather, weatherIsLive, refreshWeather, justEarned, dismissBadge,
+      plantingInPlot, firstEmptyPlot, thirsty,
+      needsWater, wateringInterval, wateringAdvice, totalWaterings,
+      plant, water, recordHeight, updateNotes, removePlanting, markSunSurveyed,
+      setContainer, waterAdvice, remindersOn, enableReminders,
+      hasEarned, earnedCount,
+      streak, plantsEverGrown, level, progress,
+      justLevelled, dismissLevel, homeColour, region,
+    ]
+  );
 
   return <GardenContext.Provider value={value}>{children}</GardenContext.Provider>;
 }

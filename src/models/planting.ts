@@ -1,4 +1,5 @@
 import { Species, speciesById } from './species';
+import { Container } from '../services/water';
 
 /// One measurement from the reference-object flow.
 export interface HeightEntry {
@@ -19,6 +20,8 @@ export interface Planting {
   plot: number;
   heights: HeightEntry[];
   notes: string;
+  /** How much soil the roots have, which is what decides how much water to give it. */
+  container?: Container;
 }
 
 export type GrowthStage = 'sown' | 'sprouting' | 'growing' | 'established' | 'ready';
@@ -35,7 +38,10 @@ export const stageLabel: Record<GrowthStage, string> = {
 /// waiting for the next, and the block stays roughly square as it grows rather than
 /// running off in a line.
 export function plotLayout(tileCount: number) {
-  const columns = Math.min(Math.max(Math.ceil(Math.sqrt(tileCount)), 3), 8);
+  // Never wider than there are beds to fill: a single planting plus its waiting bed is
+  // two columns, not three with a strip of bare soil hanging off the end.
+  const square = Math.min(Math.max(Math.ceil(Math.sqrt(tileCount)), 3), 8);
+  const columns = Math.max(1, Math.min(tileCount, square));
   return { columns, rows: Math.max(1, Math.ceil(tileCount / columns)) };
 }
 
