@@ -15,6 +15,7 @@ import { useReduceMotion } from '../hooks/useReduceMotion';
 import { AddPlantModal } from './AddPlantModal';
 import { PlantDetailModal } from './PlantDetailModal';
 import { LocationModal } from './LocationModal';
+import { PlotMapModal } from './PlotMapModal';
 
 /// The home screen: your plot, seen across the ground rather than down onto a grid.
 ///
@@ -25,6 +26,7 @@ export function AllotmentScreen() {
   const [selected, setSelected] = useState<Planting | null>(null);
   const [plotToPlant, setPlotToPlant] = useState<number | null>(null);
   const [locationOpen, setLocationOpen] = useState(false);
+  const [mapOpen, setMapOpen] = useState(false);
 
   const openPlant = useCallback((planting: Planting) => {
     haptics.pulse();
@@ -184,6 +186,9 @@ export function AllotmentScreen() {
                 colour={garden.homeColour}
                 pets={pets}
                 homeName={garden.level.homeName}
+                plantings={garden.plantings}
+                condition={garden.weather?.condition ?? 'partlyCloudy'}
+                onOpen={() => setMapOpen(true)}
               />
               {!garden.remindersOn && garden.plantings.length > 0 ? (
                 <Card style={{ marginBottom: space.md }} padding={space.md}>
@@ -207,6 +212,12 @@ export function AllotmentScreen() {
       </View>
 
       <LocationModal open={locationOpen} onClose={() => setLocationOpen(false)} />
+      <PlotMapModal
+        open={mapOpen}
+        onClose={() => setMapOpen(false)}
+        onOpenPlant={(planting) => { setMapOpen(false); openPlant(planting); }}
+        onPlantEmpty={(plot) => { setMapOpen(false); plantEmpty(plot); }}
+      />
       <PlantDetailModal planting={selectedLive} onClose={() => setSelected(null)} />
       <AddPlantModal plot={plotToPlant} onClose={() => setPlotToPlant(null)} />
     </View>

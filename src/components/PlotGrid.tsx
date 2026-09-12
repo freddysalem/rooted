@@ -1,8 +1,10 @@
-import React, { memo, useCallback, useMemo } from 'react';
+import React, { memo, useCallback, useMemo, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { PlantSprite } from './PlantSprite';
+import { MilestoneTrack } from './MilestoneTrack';
+import { PlotFilters, PlotSort, sortPlantings } from './PlotFilters';
 import { Planting, getSpecies, latestHeight, progressOf, seedOf } from '../models/planting';
 import { Species, lookOf } from '../models/species';
 import { color, radius, size, space, type } from '../theme';
@@ -18,8 +20,10 @@ import { color, radius, size, space, type } from '../theme';
 /// the row reads left to right as things you can press rather than as a picture to
 /// explore. Nothing here zooms, pans or holds a camera position.
 
-const COLUMNS = 3;
-const SPRITE_H = 78;
+// Two across rather than three: each bed has to carry a milestone track with words on
+// it now, and three columns on a phone left no room to read them.
+const COLUMNS = 2;
+const SPRITE_H = 92;
 const SOIL_H = 22;
 
 /// Must match the floor inside PlantSprite, which never draws a plant at zero size.
@@ -48,11 +52,12 @@ export function PlotGrid({ plantings, isThirsty, onOpenPlant, onPlantEmpty, head
   /** Drawn above the first row and scrolls with it. */
   header?: React.ReactElement | null;
 }) {
+  const [sort, setSort] = useState<PlotSort>('planted');
   // Beds are laid out in planting order, so the rows stay dense even if a plant in the
   // middle was pulled up and left a gap in the stored indices.
   const cells = useMemo<Cell[]>(() => {
-    const ordered = [...plantings].sort((a, b) => a.plot - b.plot);
-    const nextPlot = ordered.reduce((highest, p) => Math.max(highest, p.plot + 1), 0);
+    const ordered = sortPlantings(plantings, sort, isThirsty);
+    const nextPlot = plantings.reduce((highest, p) => Math.max(highest, p.plot + 1), 0);
     return [
       ...ordered.map((planting) => ({
         key: planting.id,
@@ -61,7 +66,7 @@ export function PlotGrid({ plantings, isThirsty, onOpenPlant, onPlantEmpty, head
       })),
       { key: `empty-${nextPlot}`, kind: 'empty' as const, plot: nextPlot },
     ];
-  }, [plantings]);
+  }, [plantings, sort, isThirsty]);
 
   const renderItem = useCallback(({ item }: { item: Cell }) => (
     item.kind === 'planting' ? (
@@ -83,7 +88,12 @@ export function PlotGrid({ plantings, isThirsty, onOpenPlant, onPlantEmpty, head
       renderItem={renderItem}
       columnWrapperStyle={styles.row}
       contentContainerStyle={styles.content}
-      ListHeaderComponent={header}
+      ListHeaderComponent={
+        <View>
+          {header}
+          {plantings.length > 1 ? <PlotFilters sort={sort} onSort={setSort} /> : null}
+        </View>
+      }
       showsVerticalScrollIndicator={false}
       initialNumToRender={9}
       maxToRenderPerBatch={6}
@@ -128,14 +138,19 @@ const PlantedBed = memo(function PlantedBed({ planting, thirsty, onPress }: {
       </View>
       {/* A nickname earns the bold line and the species drops underneath it. Without one,
           "Radish" over "Radish" was just the same word twice. */}
-      {named ? (
-        <>
-          <Text numberOfLines={1} style={styles.name}>{planting.nickname}</Text>
-          <Text numberOfLines={1} style={type.caption}>{species.name}</Text>
-        </>
-      ) : (
-        <Text numberOfLines={1} style={styles.name}>{species.name}</Text>
-      )}
+      {/* Fixed height whether or not there is a nickname, so the milestone tracks in a
+          row line up with each other instead of stepping. */}
+      <View style={styles.names}>
+        {named ? (
+          <>
+            <Text numberOfLines={1} style={styles.name}>{planting.nickname}</Text>
+            <Text numberOfLines={1} style={type.caption}>{species.name}</Text>
+          </>
+        ) : (
+          <Text numberOfLines={1} style={styles.name}>{species.name}</Text>
+        )}
+      </View>
+      <MilestoneTrack planting={planting} />
     </Pressable>
   );
 });
@@ -218,5 +233,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  names: { height: 34, justifyContent: 'flex-start' },
   name: { fontSize: 13, lineHeight: 16, fontWeight: '700', color: color.text },
 });
