@@ -34,6 +34,14 @@ const SPRITE_FLOOR = 0.3;
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
 
+/// A FlatList that can drive an Animated.Value from its own scrolling.
+///
+/// The weather tile above this list slides away on a native-driven transform, and React
+/// Native refuses a native onScroll handler on a plain VirtualizedList - it has to be
+/// wrapped first. The web build ignores useNativeDriver entirely, which is why this only
+/// ever failed on a real phone.
+const AnimatedFlatList = Animated.createAnimatedComponent(FlatList) as unknown as typeof FlatList;
+
 type Cell =
   | { key: string; kind: 'planting'; planting: Planting }
   | { key: string; kind: 'empty'; plot: number };
@@ -92,7 +100,7 @@ export function PlotGrid({
   ), [isThirsty, onOpenPlant, onPlantEmpty]);
 
   return (
-    <FlatList
+    <AnimatedFlatList
       data={cells}
       keyExtractor={(cell) => cell.key}
       numColumns={COLUMNS}
