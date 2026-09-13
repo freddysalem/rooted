@@ -1,6 +1,6 @@
 import React, { memo, useEffect, useRef, useState } from 'react';
 import { InteractionManager } from 'react-native';
-import { Animated, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Image, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { GardenProvider, useGarden } from './src/state/GardenContext';
@@ -8,6 +8,7 @@ import { AllotmentScreen } from './src/screens/AllotmentScreen';
 import { DiscoverScreen } from './src/screens/DiscoverScreen';
 import { SunSpotScreen } from './src/screens/SunSpotScreen';
 import { BadgesScreen } from './src/screens/BadgesScreen';
+import { AccountModal } from './src/screens/AccountModal';
 import { useReduceMotion } from './src/hooks/useReduceMotion';
 import { VisibilityProvider } from './src/components/Visibility';
 import { color, motion, radius, shadow, size, space, type } from './src/theme';
@@ -33,6 +34,7 @@ export default function App() {
 
 function Shell() {
   const [tab, setTab] = useState<TabKey>('allotment');
+  const [accountOpen, setAccountOpen] = useState(false);
   // A tab mounts the first time it is opened and then stays mounted, so the plot keeps
   // its zoom, lists keep their scroll position, and the compass is not re-requested.
   const [visited, setVisited] = useState<Set<TabKey>>(() => new Set(['allotment']));
@@ -68,6 +70,27 @@ function Shell() {
 
   return (
     <SafeAreaView style={styles.root}>
+      {/* The name, on every screen, small enough to forget about - and the mark itself
+          as the way in to whatever an account turns out to be. */}
+      <View style={styles.topBar}>
+        <View style={styles.topSpacer} />
+        <Text style={styles.wordmark} accessibilityRole="header">ROOTED</Text>
+        <Pressable
+          onPress={() => { haptics.selection(); setAccountOpen(true); }}
+          accessibilityRole="button"
+          accessibilityLabel="You"
+          hitSlop={8}
+          style={({ pressed }) => [styles.account, pressed && { opacity: 0.6 }]}
+        >
+          <Image
+            source={require('./assets/splash-icon.png')}
+            style={styles.accountMark}
+            resizeMode="contain"
+            accessibilityIgnoresInvertColors
+          />
+        </Pressable>
+      </View>
+
       <View style={{ flex: 1 }}>
         <TabPane active={tab === 'allotment'} mounted={visited.has('allotment')}>
           <AllotmentScreen />
@@ -107,6 +130,7 @@ function Shell() {
       </View>
 
       <BadgeToast />
+      <AccountModal open={accountOpen} onClose={() => setAccountOpen(false)} />
     </SafeAreaView>
   );
 }
@@ -192,6 +216,32 @@ function BadgeToast() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: color.canvas },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: size.gutter,
+    paddingTop: space.xs,
+    paddingBottom: space.xs,
+  },
+  topSpacer: { width: 32 },
+  wordmark: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 15,
+    lineHeight: 19,
+    fontWeight: '800',
+    letterSpacing: 2.4,
+    color: color.brandDeep,
+  },
+  account: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: color.surface,
+  },
+  accountMark: { width: 26, height: 26 },
   paneOn: { opacity: 1, zIndex: 1 },
   paneOff: { opacity: 0, zIndex: 0 },
   tabBar: {

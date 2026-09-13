@@ -156,6 +156,10 @@ function Segment({ fill }: { fill: number }) {
 
 const DOT = 8;
 
+/// The "not yet" half of the track. The pale brand green disappeared against the pale
+/// green canvas, which made every plant look finished.
+const TRACK_EMPTY = '#A7BFA4';
+
 const styles = StyleSheet.create({
   wrap: { gap: 3 },
   labels: { flexDirection: 'row', justifyContent: 'space-between' },
@@ -177,15 +181,15 @@ const styles = StyleSheet.create({
     width: DOT,
     height: DOT,
     borderRadius: DOT / 2,
-    backgroundColor: color.brandPale,
+    backgroundColor: TRACK_EMPTY,
   },
   dotSmall: { width: 6, height: 6, borderRadius: 3 },
   dotFilled: { backgroundColor: color.brand },
   dotHollow: {
     backgroundColor: color.surface,
     borderWidth: 1.5,
-    borderColor: color.brandPale,
+    borderColor: TRACK_EMPTY,
   },
-  segment: { flex: 1, flexDirection: 'row', height: 3, borderRadius: 2, overflow: 'hidden', backgroundColor: color.brandPale },
+  segment: { flex: 1, flexDirection: 'row', height: 3, borderRadius: 2, overflow: 'hidden', backgroundColor: TRACK_EMPTY },
   segmentFill: { backgroundColor: color.brand },
 });

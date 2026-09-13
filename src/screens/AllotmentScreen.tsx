@@ -28,6 +28,20 @@ export function AllotmentScreen() {
   const [locationOpen, setLocationOpen] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
 
+  // The weather tile holds still while the level card, the scene and the filters scroll
+  // up behind it - and then, once there is nothing left of them, it goes too, so a long
+  // plot gets the whole screen. Both heights are measured rather than guessed, because
+  // the header changes size with the garden.
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const [weatherHeight, setWeatherHeight] = useState(0);
+  const [headerHeight, setHeaderHeight] = useState(0);
+  const holdFor = Math.max(headerHeight - space.md, 0);
+  const weatherShift = scrollY.interpolate({
+    inputRange: [0, holdFor, holdFor + Math.max(weatherHeight, 1)],
+    outputRange: [0, 0, -Math.max(weatherHeight, 1)],
+    extrapolate: 'clamp',
+  });
+
   const openPlant = useCallback((planting: Planting) => {
     haptics.pulse();
     setSelected(planting);
@@ -65,18 +79,16 @@ export function AllotmentScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: color.canvas }}>
-      <View style={styles.header}>
-        <WeatherTile
-          note={thirstyLine}
-          weather={garden.weather}
-          onOpenLocation={() => setLocationOpen(true)}
-        />
-      </View>
-
       <View style={styles.plotArea}>
         <PlotGrid
           plantings={garden.plantings}
           isThirsty={garden.needsWater}
+          contentTop={weatherHeight}
+          onHeaderLayout={setHeaderHeight}
+          onScroll={Animated.event(
+            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+            { useNativeDriver: true }
+          )}
           header={
             <View style={{ gap: size.cardGap }}>
         <Card padding={space.md}>
@@ -199,6 +211,18 @@ export function AllotmentScreen() {
           onOpenPlant={openPlant}
           onPlantEmpty={plantEmpty}
         />
+
+        <Animated.View
+          style={[styles.header, { transform: [{ translateY: weatherShift }] }]}
+          onLayout={(e) => setWeatherHeight(e.nativeEvent.layout.height)}
+          pointerEvents="box-none"
+        >
+          <WeatherTile
+            note={thirstyLine}
+            weather={garden.weather}
+            onOpenLocation={() => setLocationOpen(true)}
+          />
+        </Animated.View>
       </View>
 
       <LocationModal open={locationOpen} onClose={() => setLocationOpen(false)} />
@@ -241,7 +265,8 @@ function WaterChip({ planting, onWater }: { planting: Planting; onWater: () => v
         style={({ pressed }) => [styles.waterChip, pressed && { backgroundColor: '#D3E7F7' }]}
       >
         <Ionicons name="water" size={15} color={color.waterText} />
-        <Text style={styles.waterChipText}>Water {planting.nickname}</Text>
+        {/* The droplet already says "water". The name is the only new information. */}
+        <Text style={styles.waterChipText}>{planting.nickname}</Text>
       </Pressable>
     </Animated.View>
   );
@@ -262,7 +287,16 @@ function nextLevelLine(progress: ReturnType<typeof levelProgress>) {
 }
 
 const styles = StyleSheet.create({
-  header: { paddingHorizontal: size.gutter, paddingTop: space.sm, paddingBottom: space.sm, gap: size.cardGap },
+  header: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: size.gutter,
+    paddingTop: space.sm,
+    paddingBottom: space.sm,
+    gap: size.cardGap,
+  },
   weather: { alignItems: 'center', minWidth: 76, gap: 2 },
   levelRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   streakChip: {

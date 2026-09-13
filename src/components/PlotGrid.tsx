@@ -1,5 +1,5 @@
-import React, { memo, useCallback, useMemo, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, Easing, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { PlantSprite } from './PlantSprite';
@@ -8,6 +8,7 @@ import { PlotFilters, PlotSort, sortPlantings } from './PlotFilters';
 import { Planting, getSpecies, latestHeight, progressOf, seedOf } from '../models/planting';
 import { Species, lookOf } from '../models/species';
 import { color, radius, size, space, type } from '../theme';
+import { useReduceMotion } from '../hooks/useReduceMotion';
 
 /// Your plot, as beds in rows.
 ///
@@ -24,7 +25,9 @@ import { color, radius, size, space, type } from '../theme';
 // bed's own picture to pay for it - there is no room for words under a 100px tile.
 const COLUMNS = 3;
 const SPRITE_H = 78;
-const SOIL_H = 22;
+// Thin. It is the ground the plant stands on, not the subject of the picture, and every
+// pixel of it is a pixel of plant nobody can see.
+const SOIL_H = 13;
 
 /// Must match the floor inside PlantSprite, which never draws a plant at zero size.
 const SPRITE_FLOOR = 0.3;
@@ -44,13 +47,21 @@ function growthOf(planting: Planting, species: Species) {
     : progressOf(planting);
 }
 
-export function PlotGrid({ plantings, isThirsty, onOpenPlant, onPlantEmpty, header }: {
+export function PlotGrid({
+  plantings, isThirsty, onOpenPlant, onPlantEmpty, header, onScroll, onHeaderLayout, contentTop = 0,
+}: {
   plantings: Planting[];
   isThirsty: (planting: Planting) => boolean;
   onOpenPlant: (planting: Planting) => void;
   onPlantEmpty: (plot: number) => void;
   /** Drawn above the first row and scrolls with it. */
   header?: React.ReactElement | null;
+  /** Animated scroll handler, for the collapsing weather tile above. */
+  onScroll?: (event: any) => void;
+  /** Fires with the height of everything above the first row of beds. */
+  onHeaderLayout?: (height: number) => void;
+  /** Room left at the top for whatever is floating over the list. */
+  contentTop?: number;
 }) {
   const [sort, setSort] = useState<PlotSort>('planted');
   // Beds are laid out in planting order, so the rows stay dense even if a plant in the
@@ -87,13 +98,15 @@ export function PlotGrid({ plantings, isThirsty, onOpenPlant, onPlantEmpty, head
       numColumns={COLUMNS}
       renderItem={renderItem}
       columnWrapperStyle={styles.row}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingTop: contentTop }]}
       ListHeaderComponent={
-        <View>
+        <View onLayout={(e) => onHeaderLayout?.(e.nativeEvent.layout.height)}>
           {header}
           {plantings.length > 1 ? <PlotFilters sort={sort} onSort={setSort} /> : null}
         </View>
       }
+      onScroll={onScroll}
+      scrollEventThrottle={16}
       showsVerticalScrollIndicator={false}
       initialNumToRender={9}
       maxToRenderPerBatch={6}
@@ -102,12 +115,40 @@ export function PlotGrid({ plantings, isThirsty, onOpenPlant, onPlantEmpty, head
   );
 }
 
+/// A slow breath between two blues. Close enough together that it reads as a glow rather
+/// than a flashing warning - this is a plant that would like a drink, not an alarm.
+const THIRSTY_DIM = '#7FC0EE';
+const THIRSTY_BRIGHT = '#2F93DC';
+
+function useThirstPulse(active: boolean) {
+  const wave = useRef(new Animated.Value(0)).current;
+  const reduceMotion = useReduceMotion();
+
+  useEffect(() => {
+    if (!active || reduceMotion) {
+      wave.setValue(reduceMotion && active ? 1 : 0);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(wave, { toValue: 1, duration: 1100, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
+        Animated.timing(wave, { toValue: 0, duration: 1100, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [active, reduceMotion]);
+
+  return wave.interpolate({ inputRange: [0, 1], outputRange: [THIRSTY_DIM, THIRSTY_BRIGHT] });
+}
+
 const PlantedBed = memo(function PlantedBed({ planting, thirsty, onPress }: {
   planting: Planting;
   thirsty: boolean;
   onPress: (planting: Planting) => void;
 }) {
   const species = getSpecies(planting);
+  const pulse = useThirstPulse(thirsty);
   const growth = growthOf(planting, species);
   const named = planting.nickname.trim().length > 0
     && planting.nickname.trim().toLowerCase() !== species.name.toLowerCase();
@@ -120,7 +161,14 @@ const PlantedBed = memo(function PlantedBed({ planting, thirsty, onPress }: {
       accessibilityLabel={`${named ? `${planting.nickname}, ` : ''}${species.name}${thirsty ? ', needs water' : ''}`}
       style={({ pressed }) => [styles.cell, pressed && styles.cellPressed]}
     >
-      <View style={styles.stage}>
+      {/* A plant that wants water gets a breathing blue edge. The droplet badge that
+          used to do this job sat underneath the milestone track and could not be seen. */}
+      <Animated.View
+        style={[
+          styles.stage,
+          thirsty && { borderWidth: 2, borderColor: pulse },
+        ]}
+      >
         {/* Over the sky, above the plant: progress without stealing a line of height. */}
         <View style={styles.track} pointerEvents="none">
           <MilestoneTrack planting={planting} compact />
@@ -134,12 +182,7 @@ const PlantedBed = memo(function PlantedBed({ planting, thirsty, onPress }: {
           />
         </View>
         <Soil />
-        {thirsty ? (
-          <View style={styles.drop} accessibilityElementsHidden>
-            <Ionicons name="water" size={11} color="#FFF" />
-          </View>
-        ) : null}
-      </View>
+      </Animated.View>
       {/* A nickname earns the bold line and the species drops underneath it. Without one,
           "Radish" over "Radish" was just the same word twice. */}
       {named ? (
@@ -221,17 +264,6 @@ const styles = StyleSheet.create({
   },
   sprite: { position: 'absolute', bottom: SOIL_H * 0.55, alignItems: 'center' },
   soil: { position: 'absolute', left: 0, right: 0, bottom: 0, height: SOIL_H },
-  drop: {
-    position: 'absolute',
-    top: 5,
-    right: 5,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: color.water,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   track: { position: 'absolute', top: 6, left: 8, right: 8, zIndex: 2 },
   name: { fontSize: 13, lineHeight: 16, fontWeight: '700', color: color.text },
 });
