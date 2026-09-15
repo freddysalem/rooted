@@ -12,6 +12,7 @@ import {
   SunSample, angularDistance, compassLabel, lightNeedForHours, sunArc, sunHoursFromArc, sunPosition,
 } from '../services/sunPath';
 import { aspectLabel } from '../models/survey';
+import { growsInRegion } from '../models/regions';
 import { color, radius, size, space, tabular, type } from '../theme';
 import * as haptics from '../services/haptics';
 import { AddPlantModal } from './AddPlantModal';
@@ -142,10 +143,12 @@ export function SunSpotScreen({ active = true }: { active?: boolean }) {
   // The compass fires many times a second. None of this depends on the bearing, so it has
   // no business re-filtering all 165 species every time the phone moves in your hand.
   const suggestions = useMemo(() => {
-    const suited = SPECIES.filter((s) => lightMinimumHours[s.light] <= hours + 0.5);
+    const suited = SPECIES.filter(
+      (s) => lightMinimumHours[s.light] <= hours + 0.5 && growsInRegion(s.id, garden.region),
+    );
     const seasonal = suited.filter((s) => s.sowMonths.includes(month));
     return (seasonal.length ? seasonal : suited).slice(0, 8);
-  }, [hours, month]);
+  }, [hours, month, garden.region]);
 
   const explanation = (() => {
     const name = MONTH_NAMES[month - 1];

@@ -65,6 +65,16 @@ export const conditionTint: Record<WeatherCondition, string> = {
 };
 
 /// Warnings worth pushing at the user, per the heat/storm alert idea.
+/// Rain we actually measured.
+///
+/// A simulated snapshot invents a rainfall figure from a sine wave. An invented
+/// millimetre that tells someone to skip a watering is the worst thing this app can do,
+/// so nothing that decides anything reads the raw field directly.
+export function measuredRain(weather: WeatherSnapshot | null | undefined): number {
+  if (!weather || weather.simulated) return 0;
+  return weather.rainfallLast24h;
+}
+
 export function conditionAlert(condition: WeatherCondition): string | null {
   if (condition === 'storm') return 'Storm about - stake anything tall and move pots against a wall.';
   if (condition === 'frost') return 'Frost about - fleece the tender plants or bring them in.';

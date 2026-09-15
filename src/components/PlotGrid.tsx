@@ -124,10 +124,16 @@ export function PlotGrid({
   );
 }
 
-/// A slow breath between two blues. Close enough together that it reads as a glow rather
-/// than a flashing warning - this is a plant that would like a drink, not an alarm.
-const THIRSTY_DIM = '#7FC0EE';
+/// A slow breath in brightness. Gentle enough that it reads as a glow rather than a
+/// flashing warning - this is a plant that would like a drink, not an alarm.
+///
+/// It used to interpolate between two blues. A colour can never run on the native
+/// driver, so that put a permanent 60fps loop on the JS thread for every thirsty bed,
+/// competing with the scroll it sits inside. Opacity can be native-driven, so the edge
+/// is now one fixed blue whose overlay breathes instead.
 const THIRSTY_BRIGHT = '#2F93DC';
+/// Never fully transparent: the edge should always be there, just quieter.
+const THIRSTY_FLOOR = 0.3;
 
 function useThirstPulse(active: boolean) {
   const wave = useRef(new Animated.Value(0)).current;
@@ -144,15 +150,15 @@ function useThirstPulse(active: boolean) {
     }
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(wave, { toValue: 1, duration: 1100, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
-        Animated.timing(wave, { toValue: 0, duration: 1100, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
+        Animated.timing(wave, { toValue: 1, duration: 1100, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        Animated.timing(wave, { toValue: 0, duration: 1100, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
       ])
     );
     loop.start();
     return () => loop.stop();
   }, [active, reduceMotion, visible]);
 
-  return wave.interpolate({ inputRange: [0, 1], outputRange: [THIRSTY_DIM, THIRSTY_BRIGHT] });
+  return wave.interpolate({ inputRange: [0, 1], outputRange: [THIRSTY_FLOOR, 1] });
 }
 
 const PlantedBed = memo(function PlantedBed({ planting, thirsty, onPress }: {
@@ -176,12 +182,13 @@ const PlantedBed = memo(function PlantedBed({ planting, thirsty, onPress }: {
     >
       {/* A plant that wants water gets a breathing blue edge. The droplet badge that
           used to do this job sat underneath the milestone track and could not be seen. */}
-      <Animated.View
-        style={[
-          styles.stage,
-          thirsty && { borderWidth: 2, borderColor: pulse },
-        ]}
-      >
+      <View style={styles.stage}>
+        {thirsty ? (
+          <Animated.View
+            pointerEvents="none"
+            style={[StyleSheet.absoluteFill, styles.thirstyEdge, { opacity: pulse }]}
+          />
+        ) : null}
         {/* Over the sky, above the plant: progress without stealing a line of height. */}
         <View style={styles.track} pointerEvents="none">
           <MilestoneTrack planting={planting} compact />
@@ -195,7 +202,7 @@ const PlantedBed = memo(function PlantedBed({ planting, thirsty, onPress }: {
           />
         </View>
         <Soil />
-      </Animated.View>
+      </View>
       {/* A nickname earns the bold line and the species drops underneath it. Without one,
           "Radish" over "Radish" was just the same word twice. */}
       {named ? (
@@ -251,6 +258,14 @@ const Soil = memo(function Soil() {
 });
 
 const styles = StyleSheet.create({
+  // Drawn over the stage rather than as its border, so the thing that animates is an
+  // opacity - the one visual property the native driver will take.
+  thirstyEdge: {
+    borderWidth: 2,
+    borderColor: THIRSTY_BRIGHT,
+    borderRadius: radius.sm,
+    zIndex: 1,
+  },
   content: { paddingBottom: space.xl, gap: space.md },
   row: { gap: space.md },
   cell: {

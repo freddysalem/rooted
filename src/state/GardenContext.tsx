@@ -7,7 +7,7 @@ import {
 } from '../models/planting';
 import { SPECIES, Species } from '../models/species';
 import { Badge, BADGES, badgeById } from '../models/badges';
-import { WeatherSnapshot, currentWeather } from '../services/weather';
+import { WeatherSnapshot, currentWeather, measuredRain } from '../services/weather';
 import {
   HomeColourId, Level, StreakState, advanceStreak, emptyStreak, levelFor, levelProgress,
 } from '../models/progress';
@@ -316,8 +316,9 @@ export function GardenProvider({ children }: { children: React.ReactNode }) {
       if (weather) {
         // Only the sky's own plants get credit for the rain; see water.ts.
         if (!planting.indoors) {
-          if (weather.rainfallLast24h >= 4) interval += 2;
-          else if (weather.rainfallLast24h >= 1) interval += 1;
+          const rain = measuredRain(weather);
+          if (rain >= 4) interval += 2;
+          else if (rain >= 1) interval += 1;
         }
         if (weather.highC >= 26) interval -= 1;
       }
@@ -337,8 +338,9 @@ export function GardenProvider({ children }: { children: React.ReactNode }) {
   const wateringAdvice = useCallback(
     (planting: Planting) => {
       if (!weather) return needsWater(planting) ? 'Due a water.' : 'Happy for now.';
-      if (weather.rainfallLast24h >= 4) {
-        return `${Math.round(weather.rainfallLast24h)}mm of rain overnight - leave it be today.`;
+      const rain = measuredRain(weather);
+      if (rain >= 4) {
+        return `${Math.round(rain)}mm of rain overnight - leave it be today.`;
       }
       if (weather.highC >= 26) {
         return `Reaching ${Math.round(weather.highC)}°C today. Water early or late, never in full midday sun.`;

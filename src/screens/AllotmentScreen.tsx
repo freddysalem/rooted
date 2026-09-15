@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Button, Card, ContentColumn, EmptyState, ProgressBar } from '../components/ui';
+import { Button, Card, ContentColumn, EmptyState } from '../components/ui';
 import { PlotGrid } from '../components/PlotGrid';
 import { HomeStrip } from '../components/HomeStrip';
 import { WeatherTile } from '../components/WeatherTile';
@@ -9,7 +9,7 @@ import { useGarden } from '../state/GardenContext';
 import { Planting } from '../models/planting';
 import { COLOUR_UNLOCK_LEVEL, HOME_COLOURS, levelProgress, petsUpTo } from '../models/progress';
 import { conditionAlert, conditionIcon, conditionLabel } from '../services/weather';
-import { color, motion, radius, size, space, tabular, type } from '../theme';
+import { color, motion, radius, size, space, type } from '../theme';
 import * as haptics from '../services/haptics';
 import { useReduceMotion } from '../hooks/useReduceMotion';
 import { AddPlantModal } from './AddPlantModal';
@@ -71,10 +71,6 @@ export function AllotmentScreen() {
     return count === 1 ? '1 plant is due a water.' : `${count} plants are due a water.`;
   })();
 
-  const streakLabel = garden.streak.days === 0
-    ? 'No streak yet'
-    : garden.streak.days === 1 ? '1 day streak' : `${garden.streak.days} day streak`;
-  const streakShort = garden.streak.days === 0 ? 'No streak' : `${garden.streak.days}d streak`;
 
   return (
     <View style={{ flex: 1, backgroundColor: color.canvas }}>
@@ -90,56 +86,29 @@ export function AllotmentScreen() {
           )}
           header={
             <View style={{ gap: size.cardGap }}>
-        <Card padding={space.md}>
-          <View style={{ gap: space.sm }}>
-            <View style={styles.levelRow}>
-              <View style={{ flex: 1, gap: 2 }}>
-                <Text style={type.bodyStrong}>
-                  Level {garden.level.level} · {garden.level.homeName}
-                </Text>
-                <Text style={type.caption}>
-                  {garden.progress.next
-                    ? nextLevelLine(garden.progress)
-                    : 'The farm is complete.'}
-                </Text>
-              </View>
-              <View accessible style={styles.streakChip} accessibilityLabel={streakLabel}>
-                <Ionicons
-                  name={garden.streak.days > 0 ? 'flame' : 'flame-outline'}
-                  size={14}
-                  color={garden.streak.days > 0 ? color.dangerText : color.textTertiary}
-                />
-                <Text style={[styles.streakText, tabular, garden.streak.days === 0 && { color: color.textSecondary }]}>
-                  {streakShort}
-                </Text>
-              </View>
-            </View>
-            <ProgressBar fraction={garden.progress.fraction} />
-            {garden.level.level >= COLOUR_UNLOCK_LEVEL ? (
-              <View style={styles.swatches} accessibilityRole="radiogroup" accessibilityLabel="House colour">
-                {HOME_COLOURS.map((option) => {
-                  const on = garden.homeColour === option.id;
-                  return (
-                    <Pressable
-                      key={option.id}
-                      onPress={() => {
-                        haptics.selection();
-                        garden.setHomeColour(option.id);
-                      }}
-                      accessibilityRole="radio"
-                      accessibilityLabel={option.name}
-                      accessibilityState={{ selected: on }}
-                      hitSlop={6}
-                      style={({ pressed }) => [styles.swatchHit, pressed && { opacity: 0.7 }]}
-                    >
-                      <View style={[styles.swatch, { backgroundColor: option.wall }, on && styles.swatchOn]} />
-                    </Pressable>
-                  );
-                })}
-              </View>
-            ) : null}
+        {garden.level.level >= COLOUR_UNLOCK_LEVEL ? (
+          <View style={styles.swatches} accessibilityRole="radiogroup" accessibilityLabel="House colour">
+            {HOME_COLOURS.map((option) => {
+              const on = garden.homeColour === option.id;
+              return (
+                <Pressable
+                  key={option.id}
+                  onPress={() => {
+                    haptics.selection();
+                    garden.setHomeColour(option.id);
+                  }}
+                  accessibilityRole="radio"
+                  accessibilityLabel={option.name}
+                  accessibilityState={{ selected: on }}
+                  hitSlop={6}
+                  style={({ pressed }) => [styles.swatchHit, pressed && { opacity: 0.7 }]}
+                >
+                  <View style={[styles.swatch, { backgroundColor: option.wall }, on && styles.swatchOn]} />
+                </Pressable>
+              );
+            })}
           </View>
-        </Card>
+        ) : null}
 
         {garden.justLevelled ? (
           <Pressable
@@ -199,6 +168,10 @@ export function AllotmentScreen() {
                 plantings={garden.plantings}
                 condition={garden.weather?.condition ?? 'partlyCloudy'}
                 onOpen={openMap}
+                level={garden.level.level}
+                levelLine={garden.progress.next ? nextLevelLine(garden.progress) : 'The farm is complete.'}
+                fraction={garden.progress.fraction}
+                streakDays={garden.streak.days}
               />
               {/* The watering-reminder prompt used to sit here. Expo Go cannot reliably
                   grant notification permission, so the card asked for something it could
@@ -220,6 +193,7 @@ export function AllotmentScreen() {
             note={thirstyLine}
             weather={garden.weather}
             onOpenLocation={() => setLocationOpen(true)}
+            onRetry={garden.refreshWeather}
           />
         </Animated.View>
       </View>
@@ -297,17 +271,6 @@ const styles = StyleSheet.create({
     gap: size.cardGap,
   },
   weather: { alignItems: 'center', minWidth: 76, gap: 2 },
-  levelRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
-  streakChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.xs,
-    paddingHorizontal: 10,
-    height: 32,
-    borderRadius: radius.pill,
-    backgroundColor: color.dangerTint,
-  },
-  streakText: { fontSize: 13, fontWeight: '700', color: color.text },
   swatches: { flexDirection: 'row', gap: space.sm, marginTop: space.xs },
   swatchHit: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   swatch: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, borderColor: 'transparent' },

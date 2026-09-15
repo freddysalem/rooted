@@ -8,7 +8,8 @@ import { Planting, getSpecies, latestHeight, progressOf, seedOf } from '../model
 import { lookOf } from '../models/species';
 import { HomeColourId, HomeTier, Pet } from '../models/progress';
 import { WeatherCondition } from '../services/weather';
-import { color, radius, space, type } from '../theme';
+import { ProgressBar } from './ui';
+import { color, radius, space, tabular, type } from '../theme';
 import * as haptics from '../services/haptics';
 
 /// Your place, under today's actual sky, with today's actual plants standing in it.
@@ -16,8 +17,16 @@ import * as haptics from '../services/haptics';
 /// It is a picture, not a screen: nothing here can be pressed except the whole thing,
 /// which opens the plot you can move around. The point is that a glance tells you two
 /// true things - what the weather is doing, and roughly how full the garden is.
+///
+/// The level, its progress and the streak used to be a separate card sitting above this
+/// one. Between them they ate a third of the screen before a single plant appeared, and
+/// they were describing the very house drawn below them. So they live in the sky now,
+/// on translucent plates that stay readable whether the sky is clear or a storm.
 
-const HEIGHT = 128;
+const HEIGHT = 152;
+/// Sky kept clear at the top for the level plates. The scene is laid out below it, so a
+/// tall house never grows up into the text.
+const OVERLAY = 58;
 const GROUND = HEIGHT - 22;
 
 /// Sky colour follows the weather, because a bright blue sky over a rain icon is a lie.
@@ -35,6 +44,7 @@ const MAX_PLANTS = 6;
 
 export const HomeStrip = memo(function HomeStrip({
   tier, colour, pets, homeName, plantings, condition, onOpen,
+  level, levelLine, fraction, streakDays,
 }: {
   tier: HomeTier;
   colour: HomeColourId;
@@ -43,12 +53,18 @@ export const HomeStrip = memo(function HomeStrip({
   plantings: Planting[];
   condition: WeatherCondition;
   onOpen?: () => void;
+  /** The number, not the name - the name is already the label on the house. */
+  level: number;
+  /** What is left to do to reach the next one. */
+  levelLine: string;
+  fraction: number;
+  streakDays: number;
 }) {
   // The houses are drawn at wildly different sizes as they grow, so the band scales each
   // one to fit rather than letting an estate spill over the edges of a shed's frame.
   const layout = useMemo(() => {
     const foot = homeFootprint(tier);
-    const room = HEIGHT - 40;
+    const room = HEIGHT - 40 - OVERLAY;
     const fit = Math.min(room / Math.max(foot.height, 1), 1);
     return { fit, houseX: 62 };
   }, [tier]);
@@ -98,7 +114,36 @@ export const HomeStrip = memo(function HomeStrip({
         })}
       </View>
 
-      <Text style={[type.caption, styles.label]}>{homeName}</Text>
+      <View style={styles.overlay} pointerEvents="none">
+        <View style={styles.overlayRow}>
+          <View style={styles.plate}>
+            <Text style={styles.levelText} numberOfLines={1}>Level {level} · {homeName}</Text>
+          </View>
+          <View
+            accessible
+            style={styles.plate}
+            accessibilityLabel={
+              streakDays === 0 ? 'No streak yet'
+                : `${streakDays} day streak`
+            }
+          >
+            <Ionicons
+              name={streakDays > 0 ? 'flame' : 'flame-outline'}
+              size={13}
+              color={streakDays > 0 ? color.dangerText : color.textTertiary}
+            />
+            <Text style={[styles.levelText, tabular, streakDays === 0 && { color: color.textTertiary }]}>
+              {streakDays}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.progressWrap}>
+          <ProgressBar fraction={fraction} height={5} />
+        </View>
+        <Text style={styles.levelLine} numberOfLines={1}>{levelLine}</Text>
+      </View>
+
       {onOpen ? (
         <View style={styles.open}>
           <Ionicons name="expand-outline" size={13} color={color.text} />
@@ -208,17 +253,45 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   plant: { flex: 1, maxWidth: 42, alignItems: 'center', justifyContent: 'flex-end' },
-  label: {
+  overlay: {
     position: 'absolute',
     left: space.sm,
-    bottom: space.xs,
+    right: space.sm,
+    top: space.sm,
+    gap: 4,
+  },
+  overlayRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
+  // Translucent rather than solid: the sky behind changes with the weather, and a
+  // hard white box would read as a separate card sitting on top of the picture.
+  plate: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: space.sm,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+    backgroundColor: '#FFFFFFD9',
+  },
+  levelText: { fontSize: 12, lineHeight: 16, fontWeight: '700', color: color.text },
+  progressWrap: {
+    width: '62%',
+    borderRadius: radius.pill,
+    overflow: 'hidden',
+    // Opaque enough to read as a groove against a clear sky AND a storm one; at level 1
+    // the bar is empty, so the track is the only thing carrying it.
+    backgroundColor: '#FFFFFFD9',
+  },
+  levelLine: {
+    fontSize: 10,
+    lineHeight: 13,
+    fontWeight: '600',
     color: color.text,
-    fontWeight: '700',
+    opacity: 0.75,
   },
   open: {
     position: 'absolute',
     right: space.sm,
-    top: space.sm,
+    top: OVERLAY + space.xs,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,

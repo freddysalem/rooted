@@ -20,14 +20,20 @@ import * as haptics from '../services/haptics';
 const DAY_LETTERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-export function WeatherTile({ note, weather, onOpenLocation }: {
+export function WeatherTile({ note, weather, onOpenLocation, onRetry }: {
   /** What needs doing today. One line. */
   note: string;
   weather: WeatherSnapshot | null;
   /** Long-press. The demo switch, deliberately not advertised. */
   onOpenLocation?: () => void;
+  /** Try the forecast again. Shown only when the numbers are estimated. */
+  onRetry?: () => void;
 }) {
-  const week = weather?.days ?? [];
+  // A simulated snapshot's seven-day strip is a sine wave, not a forecast. Drawing it
+  // exactly as the real one is drawn is the difference between an app that is offline
+  // and an app that is lying, so when there is no live feed the week does not appear.
+  const estimated = weather?.simulated ?? false;
+  const week = estimated ? [] : weather?.days ?? [];
 
   return (
     <Pressable
@@ -53,7 +59,7 @@ export function WeatherTile({ note, weather, onOpenLocation }: {
               size={34}
               color={weather ? conditionTint[weather.condition] : color.textTertiary}
             />
-            <Text style={[styles.temperature, tabular]}>
+            <Text style={[styles.temperature, tabular, estimated && { color: color.textTertiary }]}>
               {weather ? `${Math.round(weather.temperatureC)}°` : '--'}
             </Text>
             <View style={{ flex: 1, gap: 1 }}>
@@ -67,9 +73,9 @@ export function WeatherTile({ note, weather, onOpenLocation }: {
                   : ''}
               </Text>
             </View>
-            {weather ? (
+            {weather && !estimated ? (
               <Text style={styles.source} numberOfLines={2}>
-                {weather.simulated ? 'No live feed' : `${weather.source}\n${weather.placeName}`}
+                {`${weather.source}\n${weather.placeName}`}
               </Text>
             ) : null}
           </View>
@@ -80,6 +86,23 @@ export function WeatherTile({ note, weather, onOpenLocation }: {
                 <DayCell key={day.date} day={day} index={index} />
               ))}
             </View>
+          ) : null}
+
+          {estimated ? (
+            <Pressable
+              onPress={onRetry}
+              disabled={!onRetry}
+              accessibilityRole="button"
+              accessibilityLabel="Estimated weather. No connection to the forecast. Tap to try again"
+              hitSlop={6}
+              style={({ pressed }) => [styles.estimated, pressed && { opacity: 0.7 }]}
+            >
+              <Ionicons name="cloud-offline-outline" size={15} color={color.sunText} />
+              <Text style={[type.caption, { flex: 1, color: color.sunText }]} numberOfLines={2}>
+                Estimated, not measured - no connection to the forecast.
+                {onRetry ? ' Tap to try again.' : ''}
+              </Text>
+            </Pressable>
           ) : null}
 
           <Text style={[type.caption, styles.note]} numberOfLines={1}>{note}</Text>
@@ -139,5 +162,14 @@ const styles = StyleSheet.create({
   dayHigh: { fontSize: 12, lineHeight: 15, fontWeight: '700', color: color.text },
   rain: { fontSize: 8, lineHeight: 11, fontWeight: '700', color: color.waterText },
   note: { color: color.textSecondary },
+  estimated: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    paddingVertical: space.xs,
+    paddingHorizontal: space.sm,
+    borderRadius: radius.sm,
+    backgroundColor: color.sunTint,
+  },
   source: { fontSize: 9, lineHeight: 11, color: color.textTertiary, textAlign: 'right', maxWidth: 74 },
 });

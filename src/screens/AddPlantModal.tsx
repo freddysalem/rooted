@@ -12,6 +12,7 @@ import {
   CATEGORY_ORDER, SPECIES, Species, categoryLabel, difficultyLabel, lightLabel, lookOf } from '../models/species';
 import { CONTAINERS } from '../services/water';
 import { recommendationFor } from '../services/recommend';
+import { growsInRegion } from '../models/regions';
 import { color, motion, radius, size, space, type } from '../theme';
 import * as haptics from '../services/haptics';
 import { useReduceMotion } from '../hooks/useReduceMotion';
@@ -65,11 +66,16 @@ export function AddPlantModal({ plot, onClose, initialSpecies = null }: {
 
   const month = new Date().getMonth() + 1;
   const query = search.trim().toLowerCase();
+  const [showAll, setShowAll] = useState(false);
 
-  const filtered = useMemo(
-    () => (query ? SPECIES.filter((s) => s.name.toLowerCase().includes(query)) : SPECIES),
-    [query]
-  );
+  // Discover has always filtered by region; this catalogue did not, so Greens listed
+  // African nightshade next to spinach in Bristol - and the Nairobi demo would offer
+  // rhubarb. The toggle is there because a British grower with a greenhouse is a real
+  // person who wants okra, and the library should not pretend it has never heard of it.
+  const filtered = useMemo(() => {
+    const here = showAll ? SPECIES : SPECIES.filter((s) => growsInRegion(s.id, garden.region));
+    return query ? here.filter((s) => s.name.toLowerCase().includes(query)) : here;
+  }, [query, garden.region, showAll]);
   const inSeason = (s: Species) => s.sowMonths.includes(month);
 
   const pinned = initialSpecies && selected?.id === initialSpecies.id ? initialSpecies : null;
@@ -165,6 +171,27 @@ export function AddPlantModal({ plot, onClose, initialSpecies = null }: {
                     autoCorrect={false}
                     returnKeyType="search"
                   />
+
+                  <Pressable
+                    onPress={() => {
+                      haptics.selection();
+                      setShowAll((current) => !current);
+                    }}
+                    accessibilityRole="switch"
+                    accessibilityState={{ checked: showAll }}
+                    accessibilityLabel="Show every crop in the library, including ones that do not grow here"
+                    hitSlop={8}
+                    style={({ pressed }) => [styles.showAll, pressed && { opacity: 0.6 }]}
+                  >
+                    <Ionicons
+                      name={showAll ? 'checkbox' : 'square-outline'}
+                      size={15}
+                      color={showAll ? color.brand : color.textTertiary}
+                    />
+                    <Text style={type.caption}>
+                      {showAll ? 'Showing every crop in the library' : 'Show every crop in the library'}
+                    </Text>
+                  </Pressable>
 
                   {pinned ? (
                     <Card>
@@ -347,6 +374,7 @@ function PlantedMoment({ species, nickname }: { species: Species; nickname: stri
 }
 
 const styles = StyleSheet.create({
+  showAll: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingVertical: space.xs },
   scroll: { padding: size.gutter, paddingBottom: space.xxl },
   sectionHead: {
     flexDirection: 'row',

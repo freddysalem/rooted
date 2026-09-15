@@ -1,6 +1,6 @@
 import { Planting } from '../models/planting';
 import { Species } from '../models/species';
-import { WeatherSnapshot } from './weather';
+import { WeatherSnapshot, measuredRain } from './weather';
 
 /// How much water, not just when.
 ///
@@ -95,10 +95,11 @@ export function waterFor(
       because = 'Indoors, so the rain outside makes no difference.';
     }
   } else if (weather) {
-    if (weather.rainfallLast24h >= 6) {
+    const rain = measuredRain(weather);
+    if (rain >= 6) {
       skip = true;
-      because = `${Math.round(weather.rainfallLast24h)}mm of rain overnight - leave it be today.`;
-    } else if (weather.rainfallLast24h >= 2) {
+      because = `${Math.round(rain)}mm of rain overnight - leave it be today.`;
+    } else if (rain >= 2) {
       litres *= 0.5;
       because = `Some rain overnight, so half the usual.`;
     } else if (weather.highC >= 28) {
