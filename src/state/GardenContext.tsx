@@ -338,7 +338,7 @@ export function GardenProvider({ children }: { children: React.ReactNode }) {
     (planting: Planting) => {
       if (!weather) return needsWater(planting) ? 'Due a water.' : 'Happy for now.';
       if (weather.rainfallLast24h >= 4) {
-        return `${Math.round(weather.rainfallLast24h)}mm of rain overnight - the sky has done this one for you.`;
+        return `${Math.round(weather.rainfallLast24h)}mm of rain overnight - leave it be today.`;
       }
       if (weather.highC >= 26) {
         return `Reaching ${Math.round(weather.highC)}°C today. Water early or late, never in full midday sun.`;

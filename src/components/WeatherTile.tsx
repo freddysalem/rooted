@@ -91,6 +91,9 @@ export function WeatherTile({ note, weather, onOpenLocation }: {
 
 function DayCell({ day, index }: { day: WeatherSnapshot['days'][number]; index: number }) {
   const today = index === 0;
+  // Labelled "Today", not "Now": this cell carries the day's HIGH, and the big number
+  // above it is the current temperature. Calling it "Now" put two different numbers on
+  // screen for the same moment.
   // The forecast's own local date, read as a plain calendar day rather than a moment in
   // time, so a garden in Nairobi does not get yesterday's label in a British timezone.
   const [y, m, d] = day.date.split('-').map(Number);
@@ -99,11 +102,12 @@ function DayCell({ day, index }: { day: WeatherSnapshot['days'][number]; index: 
 
   return (
     <View
+      accessible
       style={[styles.day, today && styles.dayNow]}
       accessibilityLabel={`${today ? 'Today' : DAY_NAMES[weekday]}, ${conditionLabel[day.condition]}, ${Math.round(day.highC)} to ${Math.round(day.lowC)} degrees${wet ? `, ${day.rainMm.toFixed(1)} millimetres of rain` : ''}`}
     >
       <Text style={[styles.dayLabel, today && { color: color.brandDeep }]}>
-        {today ? 'Now' : DAY_LETTERS[weekday]}
+        {today ? 'Today' : DAY_LETTERS[weekday]}
       </Text>
       <Ionicons
         name={conditionIcon[day.condition] as keyof typeof Ionicons.glyphMap}

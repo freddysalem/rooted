@@ -80,7 +80,7 @@ export function SurveysModal({ open, onClose }: { open: boolean; onClose: () => 
                 <EmptyState
                   icon="sunny"
                   title="No spots measured yet"
-                  body="Stand where you would plant, point the phone at it, and save the reading. Measure a few and you can compare them here."
+                  body="Stand where you'd plant, point the phone at it, and save the reading. Measure a few and you can compare them here."
                   action={<Button label="Close" tone="quiet" onPress={onClose} />}
                 />
               </Card>

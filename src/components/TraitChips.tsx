@@ -17,7 +17,7 @@ export function TraitChips({ traits, max, compact }: {
   if (!traits || traits.length === 0) return null;
   const shown = max ? traits.slice(0, max) : traits;
   return (
-    <View style={styles.row} accessibilityLabel={`Good for: ${traits.map((t) => traitLabel[t]).join(', ')}`}>
+    <View accessible style={styles.row} accessibilityLabel={`Good for: ${traits.map((t) => traitLabel[t]).join(', ')}`}>
       {shown.map((trait) => (
         <View key={trait} style={[styles.chip, compact && styles.chipCompact]}>
           <Ionicons name={traitIcon[trait] as keyof typeof Ionicons.glyphMap} size={compact ? 10 : 12} color={color.brandDeep} />

@@ -246,7 +246,7 @@ export function MeasureModal({ planting, onClose }: { planting: Planting | null;
         ) : (
           <>
             <View style={styles.soilEdge} pointerEvents="none">
-              <Text style={styles.soilLabel}>rest this edge on the soil</Text>
+              <Text style={styles.soilLabel}>Rest this edge on the soil</Text>
             </View>
 
             {atCeiling ? (
@@ -255,8 +255,7 @@ export function MeasureModal({ planting, onClose }: { planting: Planting | null;
                   <View style={{ gap: space.sm }}>
                     <Text style={type.bodyStrong}>Taller than the phone</Text>
                     <Text style={type.caption}>
-                      The line is at the top of the glass, so this one has outgrown it. Measure
-                      with a tape and type the number instead.
+                      Measure it with a tape and type the number in.
                     </Text>
                     <Button
                       label="Switch to tape measure"
@@ -272,11 +271,12 @@ export function MeasureModal({ planting, onClose }: { planting: Planting | null;
             <Pressable
               onPress={() => setCalibrating(true)}
               accessibilityRole="button"
+              hitSlop={8}
               style={({ pressed }) => [styles.calibrate, pressed && { opacity: 0.6 }]}
             >
               <Ionicons name="options-outline" size={14} color={color.brandDeep} />
               <Text style={styles.calibrateLabel}>
-                {scale.calibrated ? 'Recalibrate' : `Reaches ${formatCm(ceiling)} cm · check accuracy`}
+                {scale.calibrated ? 'Recalibrate' : `Reaches ${formatCm(ceiling)} cm · calibrate`}
               </Text>
             </Pressable>
           </>

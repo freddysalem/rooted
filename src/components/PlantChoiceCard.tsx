@@ -107,7 +107,7 @@ export function PlantChoiceCard({
 
       {/* Rain is half the watering advice, and it only lands on plants that are outside. */}
       <View style={{ gap: space.sm }}>
-        <Text style={type.label}>Under a roof, or open to the sky?</Text>
+        <Text style={type.label}>Indoors or outdoors?</Text>
         <View style={styles.placeRow}>
           <PlaceOption
             icon="cloud-outline"
@@ -129,7 +129,7 @@ export function PlantChoiceCard({
         <Text style={type.caption}>{advice.why}</Text>
         <Text style={type.caption}>
           {choice.indoors
-            ? 'Nothing the sky does will water this one, so the reminders will never tell you to skip it.'
+            ? 'Rain never reaches it, so it always needs watering by hand.'
             : 'After heavy rain the app will tell you to leave it alone.'}
         </Text>
       </View>

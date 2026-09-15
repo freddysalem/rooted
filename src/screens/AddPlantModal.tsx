@@ -210,7 +210,7 @@ export function AddPlantModal({ plot, onClose, initialSpecies = null }: {
                           <Text style={type.bodyStrong}>{categoryLabel[category]}</Text>
                           <Text style={type.caption}>
                             {seasonCount > 0
-                              ? `${seasonCount} good to sow in ${MONTH_NAMES[month - 1]} · ${rows.length} in all`
+                              ? `${seasonCount} to sow now · ${rows.length} in all`
                               : `${rows.length} to choose from`}
                           </Text>
                         </View>

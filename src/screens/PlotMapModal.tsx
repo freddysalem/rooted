@@ -57,7 +57,7 @@ export function PlotMapModal({ open, onClose, onOpenPlant, onPlantEmpty }: {
           <View style={styles.title}>
             <Text style={type.captionStrong}>{garden.level.homeName}</Text>
             <Text style={type.caption}>
-              {garden.plantings.length} {garden.plantings.length === 1 ? 'plant' : 'plants'} · drag to move, pinch to zoom
+              {garden.plantings.length} {garden.plantings.length === 1 ? 'plant' : 'plants'}
             </Text>
           </View>
 

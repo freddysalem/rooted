@@ -64,6 +64,7 @@ export function PlotFilters({ sort, onSort }: { sort: PlotSort; onSort: (sort: P
             accessibilityRole="radio"
             accessibilityState={{ selected: on }}
             accessibilityLabel={option.label}
+            hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
             style={({ pressed }) => [
               styles.chip,
               on && styles.chipOn,

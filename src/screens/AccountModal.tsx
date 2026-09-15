@@ -20,7 +20,7 @@ const COMING: { icon: keyof typeof Ionicons.glyphMap; title: string; body: strin
   {
     icon: 'people-outline',
     title: 'Growers near you',
-    body: 'The community tab is a preview running on this phone. An account is what turns it into real neighbours.',
+    body: 'From other growers, in Discover, is a preview running on this phone. An account is what turns it into real neighbours.',
   },
   {
     icon: 'share-social-outline',

@@ -102,6 +102,7 @@ export function Community({ region, month, bare = false }: {
                     accessibilityRole="radio"
                     accessibilityState={{ selected: on }}
                     accessibilityLabel={KIND_LABEL[item]}
+                    hitSlop={7}
                     style={({ pressed }) => [styles.kind, on && styles.kindOn, pressed && !on && { opacity: 0.6 }]}
                   >
                     <Ionicons

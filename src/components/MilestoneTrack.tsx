@@ -66,7 +66,7 @@ export function MilestoneTrack({ planting, compact = false }: {
 
   if (compact) {
     return (
-      <View style={styles.track} accessibilityLabel={`Day ${day} of ${total}. ${headline}`}>
+      <View accessible style={styles.track} accessibilityLabel={`Day ${day} of ${total}. ${headline}`}>
         <Dot filled small />
         <Segment fill={firstFill} />
         {dots.length === 3 ? <Dot filled={p >= nextAt} small /> : null}
@@ -77,7 +77,7 @@ export function MilestoneTrack({ planting, compact = false }: {
   }
 
   return (
-    <View style={styles.wrap} accessibilityLabel={`Day ${day} of ${total}. ${headline}`}>
+    <View accessible style={styles.wrap} accessibilityLabel={`Day ${day} of ${total}. ${headline}`}>
       <View style={styles.labels}>
         {dots.map((dot, i) => (
           <Text

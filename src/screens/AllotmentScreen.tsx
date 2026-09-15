@@ -46,6 +46,12 @@ export function AllotmentScreen() {
     haptics.pulse();
     setSelected(planting);
   }, []);
+  // Hoisted, because HomeStrip is memoised and an inline arrow gives it a new prop
+  // identity on every render - which redraws the house, the sky and up to six sprites
+  // every time the weather refreshes or a plant is watered.
+  const openMap = useCallback(() => setMapOpen(true), []);
+  const closeMap = useCallback(() => setMapOpen(false), []);
+
   const plantEmpty = useCallback((plot: number) => {
     haptics.selection();
     setPlotToPlant(plot);
@@ -57,19 +63,12 @@ export function AllotmentScreen() {
   // Stable identity, or the plot's world geometry is recomputed on every render.
   const pets = useMemo(() => petsUpTo(garden.level.level), [garden.level.level]);
 
-  const greeting = (() => {
-    const hour = new Date().getHours();
-    if (hour < 12) return 'Good morning';
-    if (hour < 18) return 'Good afternoon';
-    return 'Good evening';
-  })();
-
   const thirstyLine = (() => {
-    if (!garden.ready) return 'Opening the gate...';
-    if (garden.plantings.length === 0) return "Your plot is empty - let's plant something.";
+    if (!garden.ready) return 'Loading your plot...';
+    if (garden.plantings.length === 0) return "Your plot is empty - plant something.";
     const count = garden.thirsty.length;
     if (count === 0) return 'Nothing needs watering today.';
-    return count === 1 ? '1 plant is asking for water.' : `${count} plants are asking for water.`;
+    return count === 1 ? '1 plant is due a water.' : `${count} plants are due a water.`;
   })();
 
   const streakLabel = garden.streak.days === 0
@@ -101,10 +100,10 @@ export function AllotmentScreen() {
                 <Text style={type.caption}>
                   {garden.progress.next
                     ? nextLevelLine(garden.progress)
-                    : 'The farm is complete. Keep it that way.'}
+                    : 'The farm is complete.'}
                 </Text>
               </View>
-              <View style={styles.streakChip} accessibilityLabel={streakLabel}>
+              <View accessible style={styles.streakChip} accessibilityLabel={streakLabel}>
                 <Ionicons
                   name={garden.streak.days > 0 ? 'flame' : 'flame-outline'}
                   size={14}
@@ -167,7 +166,7 @@ export function AllotmentScreen() {
             <EmptyState
               icon="leaf"
               title="Nothing growing yet"
-              body="Start with a radish. It is up in four weeks and almost impossible to get wrong - which is the whole point of the first one."
+              body="Start with a radish. Ready in four weeks and hard to get wrong."
               action={
                 <Button
                   label="Plant something"
@@ -199,7 +198,7 @@ export function AllotmentScreen() {
                 homeName={garden.level.homeName}
                 plantings={garden.plantings}
                 condition={garden.weather?.condition ?? 'partlyCloudy'}
-                onOpen={() => setMapOpen(true)}
+                onOpen={openMap}
               />
               {/* The watering-reminder prompt used to sit here. Expo Go cannot reliably
                   grant notification permission, so the card asked for something it could
@@ -228,7 +227,7 @@ export function AllotmentScreen() {
       <LocationModal open={locationOpen} onClose={() => setLocationOpen(false)} />
       <PlotMapModal
         open={mapOpen}
-        onClose={() => setMapOpen(false)}
+        onClose={closeMap}
         onOpenPlant={(planting) => { setMapOpen(false); openPlant(planting); }}
         onPlantEmpty={(plot) => { setMapOpen(false); plantEmpty(plot); }}
       />

@@ -9,6 +9,7 @@ import { Planting, getSpecies, latestHeight, progressOf, seedOf } from '../model
 import { Species, lookOf } from '../models/species';
 import { color, radius, size, space, type } from '../theme';
 import { useReduceMotion } from '../hooks/useReduceMotion';
+import { useIsVisible } from './Visibility';
 
 /// Your plot, as beds in rows.
 ///
@@ -131,9 +132,13 @@ const THIRSTY_BRIGHT = '#2F93DC';
 function useThirstPulse(active: boolean) {
   const wave = useRef(new Animated.Value(0)).current;
   const reduceMotion = useReduceMotion();
+  // A colour cannot be animated on the native driver, so this loop runs on the JS thread.
+  // All four tabs stay mounted behind the tab bar, so without this check every thirsty
+  // bed keeps burning frames while you are reading Discover or measuring the sun.
+  const visible = useIsVisible();
 
   useEffect(() => {
-    if (!active || reduceMotion) {
+    if (!active || reduceMotion || !visible) {
       wave.setValue(reduceMotion && active ? 1 : 0);
       return;
     }
@@ -145,7 +150,7 @@ function useThirstPulse(active: boolean) {
     );
     loop.start();
     return () => loop.stop();
-  }, [active, reduceMotion]);
+  }, [active, reduceMotion, visible]);
 
   return wave.interpolate({ inputRange: [0, 1], outputRange: [THIRSTY_DIM, THIRSTY_BRIGHT] });
 }

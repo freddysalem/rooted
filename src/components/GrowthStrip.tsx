@@ -22,7 +22,7 @@ export const GrowthStrip = memo(function GrowthStrip({ species, height = 92 }: {
   const seed = species.id.length * 7 + 3;
 
   return (
-    <View style={styles.row} accessibilityLabel={`How ${species.name} grows, sown to ready in ${species.daysToHarvest} days`}>
+    <View accessible style={styles.row} accessibilityLabel={`How ${species.name} grows, sown to ready in ${species.daysToHarvest} days`}>
       {STOPS.map((stop, index) => {
         const day = Math.max(Math.round(species.daysToHarvest * stop), 0);
         return (

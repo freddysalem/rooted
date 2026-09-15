@@ -79,10 +79,10 @@ export function LocationModal({ open, onClose }: { open: boolean; onClose: () =>
                   </View>
                   <Text style={type.caption}>
                     {garden.usingDeviceLocation
-                      ? 'This phone’s own position. Weather and crops follow it.'
+                      ? "This phone's own position. Weather and crops follow it."
                       : garden.demoPlace
-                        ? `Set by hand for the demo. ${REGIONS[garden.region].label}’s crop library is showing.`
-                        : 'No location yet, so Bristol is standing in. Grant location in Sun spot, or pick a place below.'}
+                        ? `Set by hand for the demo. ${REGIONS[garden.region].label}'s crop library is showing.`
+                        : 'No location yet, so Bristol is standing in. Allow location in Sun spot, or pick a place below.'}
                   </Text>
                   {!garden.usingDeviceLocation ? (
                     <Button label="Use my location" icon="locate" tone="quiet" onPress={useMyLocation} />

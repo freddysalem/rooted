@@ -78,7 +78,7 @@ function Shell() {
         <Pressable
           onPress={() => { haptics.selection(); setAccountOpen(true); }}
           accessibilityRole="button"
-          accessibilityLabel="You"
+          accessibilityLabel="Account"
           hitSlop={8}
           style={({ pressed }) => [styles.account, pressed && { opacity: 0.6 }]}
         >

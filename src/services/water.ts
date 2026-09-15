@@ -103,7 +103,7 @@ export function waterFor(
       because = `Some rain overnight, so half the usual.`;
     } else if (weather.highC >= 28) {
       litres *= 1.35;
-      because = `${Math.round(weather.highC)}°C today - more than usual, early or late.`;
+      because = `${Math.round(weather.highC)}°C today - more than usual, and water early or late.`;
     } else if (weather.highC >= 24) {
       litres *= 1.15;
       because = `Warm today, so a little extra.`;
@@ -116,8 +116,14 @@ export function waterFor(
 
 /// One line telling someone how to measure it without a measuring jug.
 export function inEverydayTerms(millilitres: number): string {
-  if (millilitres >= 8000) return `about ${Math.round(millilitres / 10000 * 10) / 10} buckets`;
+  if (millilitres >= 8000) {
+    const n = Math.round(millilitres / 10000 * 10) / 10;
+    return `about ${n} ${n === 1 ? 'bucket' : 'buckets'}`;
+  }
   if (millilitres >= 1500) return `about ${Math.round(millilitres / 1000)} big bottles`;
-  if (millilitres >= 400) return `about ${Math.round(millilitres / 330)} mugs`;
+  if (millilitres >= 400) {
+    const n = Math.round(millilitres / 330);
+    return `about ${n} ${n === 1 ? 'mug' : 'mugs'}`;
+  }
   return 'a small glass';
 }

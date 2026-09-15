@@ -99,7 +99,7 @@ export function PlantDetailModal({ planting, onClose }: {
     if (species.family === 'root' && progress > 0.9)
       return 'Lift one and check the size before you pull the whole row.';
     if (species.family === 'flower' && progress > 0.8)
-      return 'Leave the seed head standing - the birds will thank you in January.';
+      return 'Leave the seed head standing - the birds will eat it in January.';
     return null;
   })();
 
@@ -131,7 +131,7 @@ export function PlantDetailModal({ planting, onClose }: {
           <ContentColumn style={{ gap: size.cardGap }}>
             <Card>
               <View style={{ alignItems: 'center', gap: space.md }}>
-                <View style={styles.hero} accessibilityLabel={`${planting.nickname}, drawn at ${Math.round(progress * 100)} percent grown`}>
+                <View accessible style={styles.hero} accessibilityLabel={`${planting.nickname}, drawn at ${Math.round(progress * 100)} percent grown`}>
                   <PlantSprite
                     look={lookOf(species)}
                     progress={progress}
@@ -177,6 +177,7 @@ export function PlantDetailModal({ planting, onClose }: {
                       accessibilityRole="radio"
                       accessibilityState={{ selected: !planting.surveyId }}
                       accessibilityLabel="Not a measured spot"
+                      hitSlop={8}
                       style={({ pressed }) => [
                         styles.containerChip,
                         !planting.surveyId && styles.containerChipOn,
@@ -196,6 +197,7 @@ export function PlantDetailModal({ planting, onClose }: {
                           accessibilityRole="radio"
                           accessibilityState={{ selected: on }}
                           accessibilityLabel={`${survey.name}, ${survey.sunHours.toFixed(1)} hours of sun`}
+                          hitSlop={8}
                           style={({ pressed }) => [
                             styles.containerChip,
                             on && styles.containerChipOn,
@@ -217,8 +219,7 @@ export function PlantDetailModal({ planting, onClose }: {
                     </Text>
                   ) : garden.surveys.length === 0 ? (
                     <Text style={type.caption}>
-                      Measure a spot under Sun spot and you can tell the app exactly where this
-                      one is standing.
+                      Measure a spot on the Sun spot tab and you can tell the app where this one is.
                     </Text>
                   ) : null}
                 </View>
@@ -274,6 +275,7 @@ export function PlantDetailModal({ planting, onClose }: {
                         accessibilityRole="radio"
                         accessibilityState={{ selected: on }}
                         accessibilityLabel={`${option.label}, ${option.detail}`}
+                        hitSlop={8}
                         style={({ pressed }) => [
                           styles.containerChip,
                           on && styles.containerChipOn,
@@ -294,7 +296,7 @@ export function PlantDetailModal({ planting, onClose }: {
               <View style={{ gap: space.md }}>
                 <SectionHeader
                   title="Growth"
-                  subtitle="Stand something you know the size of next to it and match two bars. The app works out the rest."
+                  subtitle="Stand the phone in the soil beside it, or type a number off a tape."
                 />
                 {heights.length === 0 ? (
                   <View style={styles.noMeasurements}>
@@ -350,7 +352,7 @@ export function PlantDetailModal({ planting, onClose }: {
                   right={
                     notesState !== 'idle' ? (
                       <Text style={[type.caption, { color: notesState === 'saved' ? color.brandDeep : color.textTertiary }]}>
-                        {notesState === 'saved' ? 'Saved' : 'Saving…'}
+                        {notesState === 'saved' ? 'Saved' : 'Saving...'}
                       </Text>
                     ) : null
                   }
@@ -360,7 +362,7 @@ export function PlantDetailModal({ planting, onClose }: {
                   onChangeText={editNotes}
                   onBlur={flushNotes}
                   multiline
-                  placeholder="Notes..."
+                  placeholder="Write a note"
                   style={styles.notes}
                   accessibilityLabel="Diary notes"
                 />

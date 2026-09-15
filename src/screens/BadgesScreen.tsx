@@ -82,7 +82,7 @@ export function BadgesScreen() {
 
         {earnedBadges.length > 0 ? (
           <View style={{ gap: space.sm }}>
-            <SectionHeader title="Badges" subtitle="One-off milestones, earned once." />
+            <SectionHeader title="Badges" subtitle="Milestones, earned once." />
             <View style={styles.medalGrid}>
               {earnedBadges.map((badge) => (
                 <BadgeTile key={badge.id} badge={badge} />
@@ -104,6 +104,7 @@ function CropMedal({ medal }: { medal: Medal }) {
 
   return (
     <View
+      accessible
       style={[styles.tile, { borderColor: paint.rim }]}
       accessibilityLabel={`${species.name}, ${label}. ${tierBlurb[medal.tier]}${medal.tier === 'gold' && medal.count > 1 ? `, grown to harvest ${medal.count} times` : ''}`}
     >
@@ -125,6 +126,7 @@ function CropMedal({ medal }: { medal: Medal }) {
 function BadgeTile({ badge }: { badge: Badge }) {
   return (
     <View
+      accessible
       style={[styles.tile, { borderColor: color.sun }]}
       accessibilityLabel={`${badge.name}, earned. ${badge.blurb}`}
     >

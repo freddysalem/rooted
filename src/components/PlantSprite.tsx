@@ -546,7 +546,7 @@ function Bloom({ x, y, size, colour, centre, petals }: {
   );
 }
 
-function PlantBody({ look, progress, H, seed }: {
+const PlantBody = memo(function PlantBody({ look, progress, H, seed }: {
   look: PlantLook; progress: number; H: number; seed: number;
 }) {
   const p = clamp(progress, 0, 1);
@@ -972,4 +972,4 @@ function PlantBody({ look, progress, H, seed }: {
 
   // Seed leaves sit behind the true growth, never in front of it.
   return <G>{cotyledons}{body}</G>;
-}
+});

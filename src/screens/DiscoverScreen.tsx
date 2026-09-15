@@ -22,17 +22,17 @@ const MONTH_NAMES = [
 
 const MONTH_BLURBS: Record<number, string> = {
   1: 'The quiet month. Order seed, chit potatoes on a windowsill, and let the frost break up the soil for you.',
-  2: 'Things stir. Sow the first broad beans and get the beds cleared before everything happens at once.',
+  2: 'Sow the first broad beans and get the beds cleared before everything happens at once.',
   3: 'The season opens. Almost everything can be started now, indoors if not out.',
   4: 'The busiest sowing month of the year. Watch for a late frost - it catches people every spring.',
   5: 'Plant out the tender things once the frosts are properly done. Water new transplants daily for a week.',
   6: 'Everything is growing at once. Keep on top of the weeding now and the rest of the summer is easy.',
-  7: 'Peak watering. Early morning is worth twice what the same water is worth at midday.',
+  7: 'Peak watering. Water early in the morning - far less of it evaporates.',
   8: 'Harvest and keep harvesting - courgettes and beans stop producing the moment you let them go over.',
-  9: 'The soft landing. Sow overwintering greens and plant garlic at the end of the month.',
+  9: 'Sow overwintering greens and plant garlic at the end of the month.',
   10: 'Clear the spent beds, but leave some seed heads standing for the birds.',
   11: 'Mulch what is left and let the worms do the digging for you over winter.',
-  12: 'Kale, leeks and patience. Plan next year while this one is still fresh in your mind.',
+  12: 'Kale and leeks are what is left. Plan next year while this one is still fresh in your mind.',
 };
 
 /// What the month is good for, where you are. The whole tab answers one question: if I
@@ -53,10 +53,10 @@ export function DiscoverScreen() {
   const grown = garden.plantings.map((p) => p.speciesID);
   const dishes = dishesForGarden(grown).slice(0, 5);
 
-  const choose = (species: Species) => {
+  const choose = useCallback((species: Species) => {
     haptics.selection();
     setPlanting(species);
-  };
+  }, []);
 
   /// Seasonal jobs, and the ones your own plot is asking for.
   const jobs: { text: string; action?: React.ReactNode }[] = [];
@@ -80,7 +80,7 @@ export function DiscoverScreen() {
   if (garden.plantings.some((p) => getSpecies(p).family === 'fruiting' && progressOf(p) > 0.5)) {
     jobs.push({ text: 'Pinch out side shoots on the fruiting plants.' });
   }
-  if (month >= 3 && month <= 5) jobs.push({ text: 'Check for slugs after rain, in the evening - that is when they are out.' });
+  if (month >= 3 && month <= 5) jobs.push({ text: 'Check for slugs after rain, in the evening.' });
   else if (month >= 6 && month <= 8) jobs.push({ text: 'Feed the fruiting plants once a week now they are flowering.' });
   else if (month >= 9 && month <= 10) jobs.push({ text: 'Collect seed from anything that did well this year.' });
   else jobs.push({ text: 'Turn the compost heap. It will be half the size by spring.' });
@@ -111,8 +111,7 @@ export function DiscoverScreen() {
             <Text style={type.bodyMuted}>{garden.region === 'uk' ? MONTH_BLURBS[month] : region.note}</Text>
             {garden.regionIsGuess ? (
               <Text style={type.caption}>
-                No crop library for {garden.placeLabel} yet, so this is {region.label}'s - the
-                closest one we have written.
+                No crop library for {garden.placeLabel} yet, so this is {region.label}'s.
               </Text>
             ) : null}
           </View>
@@ -182,7 +181,7 @@ const SECTIONS: Section[] = [
     count: (d) => d.harvesting.length,
     render: (d) => (
       <Strip
-        subtitle="Ready to eat somewhere near you this month."
+        subtitle="Ready to pick this month where you are."
         species={d.harvesting}
         onChoose={d.choose}
       />
@@ -195,7 +194,7 @@ const SECTIONS: Section[] = [
     count: (d) => d.sowing.length,
     render: (d) => (
       <Strip
-        subtitle="Get these in the ground and they will have time to finish. Tap one to plant it."
+        subtitle="Sow these now and they will be ready in time. Tap one to plant it."
         species={d.sowing}
         onChoose={d.choose}
       />
@@ -208,7 +207,7 @@ const SECTIONS: Section[] = [
     count: (d) => d.region.nativeSpeciesIds.length,
     render: (d) => (
       <Strip
-        subtitle="Grown here long before the supermarket. Suited to the soil and the weather."
+        subtitle="Long established here, and suited to the soil and the weather."
         species={d.region.nativeSpeciesIds.map(speciesById)}
         onChoose={d.choose}
       />
@@ -222,7 +221,7 @@ const SECTIONS: Section[] = [
     render: (d) => (
       <View style={{ gap: space.sm }}>
         <Text style={type.caption}>
-          Disappearing from plots and plates. Every bed that grows one keeps it going.
+          Crops that are disappearing. Growing one helps keep it going.
         </Text>
         {d.region.atRisk.map(({ speciesId, why }) => {
           const species = speciesById(speciesId);
@@ -263,7 +262,7 @@ const SECTIONS: Section[] = [
         <Text style={type.caption}>
           {d.dishes.length
             ? 'Dishes your plot can already supply, most complete first.'
-            : 'Grow these together and you have a dish, not just a crop.'}
+            : 'Grow these together and you have a whole dish.'}
         </Text>
         {d.dishes.length
           ? d.dishes.map((match) => <DishRow key={match.dish.id} match={match} onSow={d.choose} />)
@@ -300,7 +299,6 @@ const SECTIONS: Section[] = [
     countLabel: 'jobs',
     render: (d) => (
       <View style={{ gap: space.md }}>
-        <Text style={type.caption}>Small jobs that pay off later.</Text>
         {d.jobs.map((job, index) => (
           <View key={index} style={styles.job}>
             <View style={styles.dot} />
@@ -361,6 +359,13 @@ function Strip({ subtitle, species, onChoose }: {
   species: Species[];
   onChoose: (species: Species) => void;
 }) {
+  // Hoisted out of the JSX: an inline renderItem makes VirtualizedList re-render every
+  // mounted cell on each parent render, whatever the cells themselves are memoised on.
+  const renderTile = useCallback(
+    ({ item }: { item: Species }) => <CarouselTile species={item} onChoose={onChoose} />,
+    [onChoose],
+  );
+
   return (
     <View style={{ gap: space.sm }}>
       <Text style={type.caption}>{subtitle}</Text>
@@ -372,7 +377,7 @@ function Strip({ subtitle, species, onChoose }: {
         contentContainerStyle={{ gap: space.sm, paddingVertical: 2 }}
         initialNumToRender={4}
         windowSize={3}
-        renderItem={({ item }) => <CarouselTile species={item} onChoose={onChoose} />}
+        renderItem={renderTile}
       />
     </View>
   );
@@ -398,6 +403,7 @@ function SourceNote() {
           accessibilityRole="button"
           accessibilityState={{ expanded: open }}
           accessibilityLabel={open ? 'Hide the sources' : 'Show the sources'}
+          hitSlop={10}
           style={({ pressed }) => [styles.sourceToggle, pressed && { backgroundColor: color.surfacePressed }]}
         >
           <Text style={[type.captionStrong, { color: color.brandDeep }]}>

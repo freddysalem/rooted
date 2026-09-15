@@ -51,9 +51,12 @@ export function SunSpotScreen({ active = true }: { active?: boolean }) {
   const [spotName, setSpotName] = useState('');
 
   useEffect(() => {
+    if (!active) return;
+    // Catch up straight away, so coming back to the tab never shows a stale sun.
+    setNow(new Date());
     const timer = setInterval(() => setNow(new Date()), 30000);
     return () => clearInterval(timer);
-  }, []);
+  }, [active]);
 
   // Only use location if it has already been allowed. Asking is a deliberate tap below,
   // so nobody is hit with a permission prompt before they know what the screen is for.
@@ -136,9 +139,13 @@ export function SunSpotScreen({ active = true }: { active?: boolean }) {
   const need = lightNeedForHours(hours);
 
   const month = now.getMonth() + 1;
-  const suited = SPECIES.filter((s) => lightMinimumHours[s.light] <= hours + 0.5);
-  const seasonal = suited.filter((s) => s.sowMonths.includes(month));
-  const suggestions = (seasonal.length ? seasonal : suited).slice(0, 8);
+  // The compass fires many times a second. None of this depends on the bearing, so it has
+  // no business re-filtering all 165 species every time the phone moves in your hand.
+  const suggestions = useMemo(() => {
+    const suited = SPECIES.filter((s) => lightMinimumHours[s.light] <= hours + 0.5);
+    const seasonal = suited.filter((s) => s.sowMonths.includes(month));
+    return (seasonal.length ? seasonal : suited).slice(0, 8);
+  }, [hours, month]);
 
   const explanation = (() => {
     const name = MONTH_NAMES[month - 1];
@@ -193,7 +200,7 @@ export function SunSpotScreen({ active = true }: { active?: boolean }) {
     if (locationState === 'granted' && coords) return 'Using your location, accurate to the nearest few hundred metres.';
     if (locationState === 'granted') return 'Finding your location...';
     if (locationState === 'denied') return `Location is off for Rooted, so ${FALLBACK.name} is standing in.`;
-    return `Using ${FALLBACK.name} as a stand-in. Allow location for your own sky.`;
+    return `Using ${FALLBACK.name} as a stand-in. Allow location for your own garden.`;
   })();
 
   return (
@@ -225,7 +232,7 @@ export function SunSpotScreen({ active = true }: { active?: boolean }) {
             <Text style={type.bodyStrong}>View surveys</Text>
             <Text style={type.caption}>
               {garden.surveys.length === 0
-                ? 'Nothing saved yet - measure a spot and it will be kept here.'
+                ? 'Nothing saved yet - measure a spot below.'
                 : `${garden.surveys.length} ${garden.surveys.length === 1 ? 'spot' : 'spots'} saved`}
             </Text>
           </View>
@@ -350,8 +357,7 @@ export function SunSpotScreen({ active = true }: { active?: boolean }) {
                 <View style={styles.frozenNote}>
                   <Ionicons name="snow-outline" size={15} color={color.waterText} />
                   <Text style={[type.caption, { flex: 1, color: color.waterText }]}>
-                    Reading held at {hours.toFixed(1)} hours, {compassLabel(bearing)}. Move the
-                    phone all you like.
+                    Reading held at {hours.toFixed(1)} hours, {compassLabel(bearing)}.
                   </Text>
                 </View>
                 <Input

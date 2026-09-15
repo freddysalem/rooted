@@ -66,8 +66,8 @@ export const conditionTint: Record<WeatherCondition, string> = {
 
 /// Warnings worth pushing at the user, per the heat/storm alert idea.
 export function conditionAlert(condition: WeatherCondition): string | null {
-  if (condition === 'storm') return 'Storm forecast - stake anything tall and move pots against a wall.';
-  if (condition === 'frost') return 'Frost tonight - fleece the tender plants or bring them in.';
+  if (condition === 'storm') return 'Storm about - stake anything tall and move pots against a wall.';
+  if (condition === 'frost') return 'Frost about - fleece the tender plants or bring them in.';
   return null;
 }
 

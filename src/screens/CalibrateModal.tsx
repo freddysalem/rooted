@@ -77,7 +77,7 @@ export function CalibrateModal({ visible, scale, onSave, onClose }: {
               <View style={{ gap: space.xs }}>
                 <Text style={type.bodyStrong}>Lay a bank card on the screen</Text>
                 <Text style={type.caption}>
-                  Any bank, credit or loyalty card - they are all the same size by law. Drag the
+                  Any bank, credit or loyalty card - they are all exactly the same size. Drag the
                   right-hand edge until the outline sits exactly under the card, then save.
                 </Text>
               </View>
@@ -110,7 +110,7 @@ export function CalibrateModal({ visible, scale, onSave, onClose }: {
                   <Pressable
                     onPress={() => nudgeBezel(-0.1)}
                     accessibilityRole="button"
-                    accessibilityLabel="Less"
+                    accessibilityLabel="Less case below the screen"
                     style={({ pressed }) => [styles.stepperButton, pressed && { opacity: 0.6 }]}
                   >
                     <Ionicons name="remove" size={18} color={color.brandDeep} />
@@ -119,7 +119,7 @@ export function CalibrateModal({ visible, scale, onSave, onClose }: {
                   <Pressable
                     onPress={() => nudgeBezel(0.1)}
                     accessibilityRole="button"
-                    accessibilityLabel="More"
+                    accessibilityLabel="More case below the screen"
                     style={({ pressed }) => [styles.stepperButton, pressed && { opacity: 0.6 }]}
                   >
                     <Ionicons name="add" size={18} color={color.brandDeep} />
@@ -128,7 +128,7 @@ export function CalibrateModal({ visible, scale, onSave, onClose }: {
               </View>
             </Card>
 
-            <Button label="Back to the standard size" tone="quiet" onPress={reset} />
+            <Button label="Reset to the default" tone="quiet" onPress={reset} />
           </ContentColumn>
         </View>
       </SafeAreaView>
