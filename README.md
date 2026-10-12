@@ -4,6 +4,8 @@
 on-screen twin that grows as the real one does, with watering driven by live weather and a
 sun-path survey that tells you how many hours of direct sun a spot in your garden gets.
 
+**[▶ Try it in your browser](https://freddysalem.github.io/rooted/)**. It works best on a phone; the sun survey needs a compass.
+
 🏆 **Joint first place, Aegis Innovation Competition 2026** (University of Bristol), from 600+ applicants.
 I came up with the idea, led a four-person team and was the sole engineer on the app. It was
 built in 12 weeks with AI-assisted development (Claude Code) and demonstrated live on a phone at

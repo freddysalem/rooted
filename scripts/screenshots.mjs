@@ -13,6 +13,8 @@
 //         scroll:px | wait:ms | text   (dumps the page text, handy when a tap misses)
 // Devices: mobile (375x812, touch) | desktop (1280x900) | both
 // Gardens: empty | small | big
+// Places:  --place bristol|london|nairobi   seeds the demo location, which decides both
+//          the live weather and which regional crop library Discover shows
 //
 // Start the web server first:  npx expo start --web --port 8110
 
@@ -39,6 +41,7 @@ const option = (name, fallback) => {
 const baseUrl = option('url', 'http://localhost:8110');
 const deviceArg = option('device', 'both');
 const gardenArg = option('garden', null);
+const placeArg = option('place', null);
 const outDir = resolve(option('out', join('shots', new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-'))));
 const steps = args;
 mkdirSync(outDir, { recursive: true });
@@ -201,11 +204,20 @@ const GARDENS = {
   },
 };
 
+const PLACES = {
+  bristol: { name: 'Bristol', label: 'Bristol, England, United Kingdom', latitude: 51.4545, longitude: -2.5879, countryCode: 'GB' },
+  london: { name: 'London', label: 'London, England, United Kingdom', latitude: 51.5085, longitude: -0.1257, countryCode: 'GB' },
+  nairobi: { name: 'Nairobi', label: 'Nairobi, Kenya', latitude: -1.2864, longitude: 36.8172, countryCode: 'KE' },
+};
+
 async function load(garden) {
   await send('Page.navigate', { url: baseUrl });
   await sleep(3500);
-  if (GARDENS[garden]) {
-    await evaluate(`localStorage.setItem('plantpartner.garden.v1', ${JSON.stringify(JSON.stringify(GARDENS[garden]))})`);
+  const place = placeArg ? PLACES[placeArg] : null;
+  if (placeArg && !place) throw new Error(`no such place "${placeArg}" - try ${Object.keys(PLACES).join(', ')}`);
+  const payload = GARDENS[garden] ? { ...GARDENS[garden], demoPlace: place } : place ? { demoPlace: place } : null;
+  if (payload) {
+    await evaluate(`localStorage.setItem('plantpartner.garden.v1', ${JSON.stringify(JSON.stringify(payload))})`);
   } else {
     await evaluate('localStorage.clear()');
   }
