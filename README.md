@@ -1,84 +1,52 @@
-# Rooted — Expo build
+# Rooted
 
-The same app as the native SwiftUI version, rebuilt in React Native so it runs on a phone
-through **Expo Go** without Xcode.
+**A gardening companion app that helps people grow their own food.** Every plant you own gets an
+on-screen twin that grows as the real one does, with watering driven by live weather and a
+sun-path survey that tells you how many hours of direct sun a spot in your garden gets.
+
+🏆 **Joint first place, Aegis Innovation Competition 2026** (University of Bristol), from 600+ applicants.
+I came up with the idea, led a four-person team and was the sole engineer on the app. It was
+built in 12 weeks with AI-assisted development (Claude Code) and demonstrated live on a phone at
+the showcase.
+
+<p>
+  <img src="docs/screenshots/01.png" width="160" alt="Allotment home screen">
+  <img src="docs/screenshots/02.png" width="160" alt="Planting a crop">
+  <img src="docs/screenshots/03.png" width="160" alt="At-risk heritage crops">
+  <img src="docs/screenshots/04.png" width="160" alt="Cook what you've grown">
+  <img src="docs/screenshots/05.png" width="160" alt="Growers near you">
+</p>
+
+## The engineering worth looking at
+
+| What | How it works | Where |
+| --- | --- | --- |
+| **Sun-path survey** | Implements the US Naval Observatory low-precision solar-position algorithm (~0.1° accuracy). From the phone's coordinates and the date it derives the sun's azimuth and elevation, samples the whole day, and counts the samples that clear the skyline and fall within 90° of the direction the phone faces. That count is the spot's direct-sun hours. | [`src/services/sunPath.ts`](src/services/sunPath.ts) |
+| **Measuring plants from a photo** | Stand an object of known size in the soil; the ratio between it and the plant is fixed whatever the camera distance, so `plant_cm = reference_cm × (plant_px ÷ reference_px)`. The motion sensor drives an on-screen spirit level, because a tilted frame skews the ratio. | [`src/screens/MeasureModal.tsx`](src/screens/MeasureModal.tsx) |
+| **Live weather** | Open-Meteo forecast keyed off the device's location, with WMO weather codes mapped to the app's own conditions and a frost override below 0.5 °C. A deterministic seasonal model is kept as the offline and permission-denied fallback. | [`src/services/weather.ts`](src/services/weather.ts) |
+| **Plant sprites** | Drawn as SVG, not photographed. Every dimension is driven by the plant's real progress towards harvest, and each sways on its own seeded clock, hinged at the soil. | [`src/components/PlantSprite.tsx`](src/components/PlantSprite.tsx) |
+| **Crop library** | 165 crops with region-aware recommendations. Only two things change between countries, the weather (automatic from location) and the crop list, so the app is built for Britain and Kenya from one codebase. | [`src/models/species.ts`](src/models/species.ts) |
+
+## Two builds
+
+- **Expo / React Native** (this folder): runs on any phone through Expo Go. This is the build that was demonstrated at the competition. ~12,000 lines of TypeScript.
+- **Native SwiftUI** ([`ios-swiftui/`](ios-swiftui/)): the original iPhone prototype, iOS 17+. ~3,000 lines of Swift.
 
 ## Running it
 
 ```bash
-npx expo start --lan --port 8100
+npm install
+npx expo start
 ```
 
-Scan the QR code with the Camera app (iOS) or the Expo Go app. Phone and Mac must be on
-the same Wi-Fi. If they aren't, use `npx expo start --tunnel` instead.
+Scan the QR code with Expo Go. For LAN, port, sign-in and screenshot-harness details, see
+[docs/EXPO-DEVELOPMENT.md](docs/EXPO-DEVELOPMENT.md).
 
-The explicit `--port 8100` matters: this machine already runs other Expo projects on 8081
-and 8090, and without a free port the CLI stops at a prompt instead of showing a QR code.
+## Stack
 
-**Expo Go must match.** This project is on SDK 57; a mismatched Expo Go refuses it with
-"Project is incompatible with this version of Expo Go". Update it from the App Store.
+TypeScript · React Native · Expo SDK 57 · react-native-svg · expo-location · expo-sensors ·
+expo-notifications · AsyncStorage · Open-Meteo · SwiftUI (native build)
 
-**You must be signed in on both ends.** Since SDK 57, Expo Go on iOS only opens a dev
-server when the phone and the terminal are signed in to the *same* Expo account —
-`npx expo login` here, avatar icon in Expo Go there. Signed out on either side fails the
-same way. To demo on other people's phones, see [DEMO.md](DEMO.md).
+---
 
-## What's here
-
-| Tab | What it does |
-| --- | --- |
-| **Allotment** | 3×4 grid of beds. Press a plant and it pulses with a haptic. Weather header, storm/frost alerts, one-tap watering row. |
-| **Discover** | What's in season, what to sow this month, and a job list that reacts to your own plot. |
-| **Sun spot** | Point the phone at a spot; it computes the sun's real track for your coordinates and reports the direct-sun hours, then names plants that suit it. |
-| **Badges** | Ten private milestones. No leaderboard, by design. |
-
-Tapping a plant opens its detail sheet: growth stage and progress to harvest,
-weather-adjusted watering advice, a height log, stage-aware pruning reminders, and a diary.
-
-## How the real bits work
-
-**Sun path** (`src/services/sunPath.ts`) is the US Naval Observatory low-precision solar
-position algorithm — accurate to about a tenth of a degree. From your coordinates and the
-date it derives the sun's azimuth and elevation, samples the whole day, and counts the
-samples that both clear your skyline and fall within 90° of the direction you're facing.
-That count is the spot's direct-sun hours. Heading comes from `expo-location`'s compass.
-
-**Measurement** (`src/screens/MeasureModal.tsx`) uses the reference-object trick: stand
-something of known size in the soil and the ratio between it and the plant is fixed
-regardless of camera distance, so `plant_cm = reference_cm × (plant_on_screen ÷ reference_on_screen)`.
-`expo-sensors` drives a spirit level, because a tilted frame skews that ratio.
-
-**Plant sprites** (`src/components/PlantSprite.tsx`) are drawn as SVG, not photographed.
-Every dimension is driven by the plant's real progress toward harvest, so the drawing
-tracks the plant. Each sways on its own seeded clock, hinged at the soil rather than the
-middle, so a bed of twelve doesn't look like twelve copies of one animation.
-
-State lives in one React context and persists to AsyncStorage.
-
-## Differences from the native build
-
-- Weather is the same deterministic seasonal model. On the native side WeatherKit would
-  slot in behind it; from Expo Go an HTTP forecast API is the equivalent. Neither changes
-  a line of UI.
-- Photo plant-ID and automatic measurement are still not built — they need Vision/Core ML
-  natively, or a hosted model from Expo. The manual flow already does the arithmetic the
-  automatic version would feed.
-- Social feed, community diary and the bee messenger need a backend and accounts.
-- Subscription billing isn't wired up; in-app purchases need a development build, not
-  Expo Go.
-
-## Screenshots
-
-`scripts/screenshots.mjs` drives the web build in headless Chrome, seeds a garden, taps
-through every flow and writes PNGs at 375px and 1280px. It needs Chrome in
-`/Applications` and nothing else that isn't already installed.
-
-```bash
-npx expo start --web --port 8110     # in one terminal
-npm run shots                        # full walkthrough into shots/<timestamp>/
-npm run shots -- --out shots/before  # named folder, for before/after comparisons
-node scripts/screenshots.mjs --device mobile --garden small tap:Discover shot:discover
-```
-
-Steps are `shot:name`, `tap:Text`, `tapfuzzy:Text`, `type:Placeholder=text`, `scroll:px`
-and `wait:ms`. The run exits non-zero if a step fails, and prints any console errors.
+Built by [Freddy Salem](https://github.com/freddysalem), Design Engineering, University of Bristol.
